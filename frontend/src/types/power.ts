@@ -26,6 +26,17 @@ export interface PowerUps {
   last_transfer?: string | null
   transfers?: number | null
   battery_date?: string | null
+  /** The battery string's own voltage (a 48 V string floats at about 54 V on mains). */
+  battery_volts?: number | null
+  /** Output current, and the apparent power (VA) the UPS reports against its VA rating. */
+  output_amps?: number | null
+  output_va?: number | null
+  capacity_va?: number | null
+  /** The last self-test's result, in words: "passed", "failed (battery capacity)", "no result". */
+  self_test?: string | null
+  /** When the host's UPS daemon shuts it down on battery: at this charge, or with this much runtime left. */
+  shutdown_battery_percent?: number | null
+  shutdown_runtime_seconds?: number | null
   /** When the UPS last reported (ISO), so a panel can show the reading's age. */
   updated?: string | null
 }

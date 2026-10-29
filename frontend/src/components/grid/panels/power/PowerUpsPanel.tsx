@@ -4,6 +4,7 @@ import {
   formatClock,
   formatRuntime,
   formatRuntimeShort,
+  formatWattsValue,
   LOAD_THRESHOLDS,
   onBattery,
   runtimeColor,
@@ -18,10 +19,37 @@ const STALE_S = 90
 function formatAge(s: number): string {
   return s < 120 ? `${s} s` : s < 7200 ? `${Math.round(s / 60)} min` : `${Math.round(s / 3600)} h`
 }
-import type { PowerNow } from '@/types/power'
+import type { PowerNow, PowerUps } from '@/types/power'
 import { usePanelDevice } from '../../panelDevice'
 import { PanelNotice } from '../PanelNotice'
 import { FactLine, Headline, PowerNotice, PowerStat, Sparkline, StaleBadge, StripFooter } from './PowerParts'
+
+/**
+ * The second row of figures, each shown only when the source reports it: what
+ * the UPS hands out (amps, and VA against its VA rating), the battery string's
+ * voltage with the last self-test, and when the host is shut down on battery.
+ */
+function SecondRow({ ups, dim }: { ups: PowerUps; dim: boolean }) {
+  const pct = ups.shutdown_battery_percent ?? null
+  const left = ups.shutdown_runtime_seconds ?? null
+  const failed = ups.self_test?.startsWith('failed') ?? false
+  const stats = [
+    ups.output_amps != null && (
+      <PowerStat key="out" label="Output" value={ups.output_amps.toFixed(2)} unit="A"
+        sub={ups.output_va != null ? `≈${formatWattsValue(ups.output_va)} VA${ups.capacity_va ? ` of ${formatWattsValue(ups.capacity_va)}` : ''}` : undefined} />
+    ),
+    ups.battery_volts != null && (
+      <PowerStat key="batt" label="Battery V" value={ups.battery_volts.toFixed(1)} unit="V"
+        sub={ups.self_test ? <span className={failed ? 'text-red-400' : undefined}>self-test {ups.self_test}</span> : undefined} />
+    ),
+    (pct !== null || left !== null) && (
+      <PowerStat key="off" label="Shuts down at" value={pct !== null ? Math.round(pct) : formatRuntimeShort(left!)}
+        unit={pct !== null ? '%' : undefined} sub={pct !== null && left !== null ? `or ${formatRuntime(left)} left` : undefined} />
+    ),
+  ].filter(Boolean)
+  if (stats.length === 0) return null
+  return <div className={`grid grid-cols-3 gap-2 min-w-0 ${dim ? 'opacity-40' : ''}`}>{stats}</div>
+}
 
 /**
  * The UPS at a glance. On mains the headline is its state; on battery it is
@@ -97,6 +125,7 @@ export function PowerUpsPanel() {
           unit={ups.capacity_watts ? `% of ${Math.round(ups.capacity_watts).toLocaleString('en-GB')} W` : '%'}
         />
       </div>
+      <SecondRow ups={ups} dim={stale} />
       {facts.length > 0 && (
         <FactLine>
           {facts.join(' · ')}

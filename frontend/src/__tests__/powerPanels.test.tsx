@@ -469,3 +469,29 @@ describe('a day in the 7-day heatmap', () => {
     expect(tip.getByText('GPUs 25 % of the energy')).toBeInTheDocument()
   })
 })
+
+describe('the UPS card\'s second row', () => {
+  it('shows the output, the battery volts with the self-test, and when the host is shut down', async () => {
+    respond(200, { ...NOW, ups: { ...NOW.ups!, output_amps: 1.53, output_va: 351, capacity_va: 3000, battery_volts: 54.5,
+      self_test: 'passed', shutdown_battery_percent: 20, shutdown_runtime_seconds: 300 } })
+    withStore(<PowerUpsPanel />)
+    expect(await screen.findByText('1.53')).toBeInTheDocument()
+    expect(screen.getByText('≈351 VA of 3,000')).toBeInTheDocument()
+    expect(screen.getByText('54.5')).toBeInTheDocument()
+    expect(screen.getByText('self-test passed')).toBeInTheDocument()
+    expect(screen.getByRole('group', { name: 'Shuts down at' })).toHaveTextContent('20%or 5 min left')
+  })
+
+  it('draws a failed self-test red, and leaves the row out for a source without these figures', async () => {
+    respond(200, { ...NOW, ups: { ...NOW.ups!, battery_volts: 46.1, self_test: 'failed (battery capacity)' } })
+    const { unmount } = withStore(<PowerUpsPanel />)
+    expect(await screen.findByText('self-test failed (battery capacity)')).toHaveClass('text-red-400')
+    unmount()
+    resetPowerPollers()
+    respond(200, NOW)
+    withStore(<PowerUpsPanel />)
+    await screen.findByText('Online')
+    expect(screen.queryByRole('group', { name: 'Output' })).toBeNull()
+    expect(screen.queryByRole('group', { name: 'Shuts down at' })).toBeNull()
+  })
+})
