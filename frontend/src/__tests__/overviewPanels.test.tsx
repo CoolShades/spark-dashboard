@@ -72,6 +72,7 @@ describe('the overview’s GPUs card', () => {
     expect(tile).toHaveTextContent('246 W')
     expect(screen.getByLabelText('GPU 0 power 70 % of its limit')).toBeInTheDocument() // 246 of 350 W
     expect(screen.getByText('266 W')).toBeInTheDocument() // board power, both cards
+    expect(screen.getByLabelText('GPU 0 load, last few minutes')).toBeInTheDocument() // each tile's load strip
   })
 })
 

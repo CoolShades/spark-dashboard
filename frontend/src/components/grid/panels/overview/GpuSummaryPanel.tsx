@@ -1,12 +1,14 @@
-import { useLatestSnapshot } from '@/hooks/useMetricsStore'
+import { useLatestSnapshot, useMetricSeries } from '@/hooks/useMetricsStore'
 import { POWER_POLL_MS, usePowerDocument } from '@/hooks/usePowerDocument'
 import { gpuTempColor, heldBy, utilColor } from '@/lib/gpus'
 import { gpuIndexOf, snapshotGpus } from '@/lib/identity'
+import { gpuSeries } from '@/lib/metricsHistoryStore'
 import { formatWattsValue, LOAD_THRESHOLDS } from '@/lib/power'
 import { NVIDIA_THEME, thresholdColor } from '@/lib/theme'
 import type { GpuDoc, GpuExtra } from '@/types/gpus'
 import type { GpuMetrics } from '@/types/metrics'
 import { PanelNotice } from '../PanelNotice'
+import { HoverStrip } from '../tokens/TokenParts'
 
 const GIB = 2 ** 30
 const PILL = 'text-[8px] 2xl:text-[9px] uppercase tracking-wider border rounded px-1 leading-tight'
@@ -14,15 +16,17 @@ const PILL = 'text-[8px] 2xl:text-[9px] uppercase tracking-wider border rounded 
 /**
  * One GPU as a tile: its name and P-state (or what holds its clocks while it
  * works), its load as the big figure, its temperature, power against its limit
- * as a bar, and VRAM, spread through the tile.
+ * as a bar, VRAM, and a strip of its load over the last few minutes (its value
+ * on hover).
  */
-function GpuTile({ g, x }: { g: GpuMetrics; x: GpuExtra | undefined }) {
+function GpuTile({ g, x, multi }: { g: GpuMetrics; x: GpuExtra | undefined; multi: boolean }) {
   const i = gpuIndexOf(g)
+  const series = useMetricSeries(gpuSeries('gpuUtil', i, multi), '5m')
   const load = g.utilization_percent
   const held = x ? heldBy(x.clock_reasons, load) : null
   const share = g.power_watts !== null && g.power_limit_watts ? (g.power_watts / g.power_limit_watts) * 100 : null
   return (
-    <div className="flex flex-col justify-between gap-1 min-w-0 min-h-0 rounded border border-zinc-800 px-2 py-1.5" aria-label={`GPU ${i}`}>
+    <div className="flex flex-col gap-1 min-w-0 min-h-0 rounded border border-zinc-800 px-2 py-1.5" aria-label={`GPU ${i}`}>
       <div className="flex items-center gap-1.5 min-w-0">
         <span className="text-[10px] 2xl:text-xs uppercase tracking-wider text-zinc-300 truncate">{x?.label ?? `GPU ${i}`}</span>
         {x?.pstate && <span className={`${PILL} ml-auto text-zinc-400 border-zinc-700`}>{x.pstate}</span>}
@@ -46,14 +50,19 @@ function GpuTile({ g, x }: { g: GpuMetrics; x: GpuExtra | undefined }) {
         <span><span className="text-zinc-200">{g.power_watts !== null ? formatWattsValue(g.power_watts) : '—'}</span> W</span>
         <span className="truncate">{g.memory_used_bytes != null && g.memory_total_bytes ? `${(g.memory_used_bytes / GIB).toFixed(1)} / ${(g.memory_total_bytes / GIB).toFixed(0)} GB` : ''}</span>
       </div>
+      <div className="flex-1 min-h-3 flex">
+        <HoverStrip points={series} color={NVIDIA_THEME.accent} max={100} label={`GPU ${i} load, last few minutes`}
+          format={(v) => `${Math.round(v)} %`} />
+      </div>
     </div>
   )
 }
 
 /**
  * Every GPU in one card, for the overview: a tile each (load, temperature,
- * power against its limit and VRAM, the snapshot's, every second; its P-state
- * from the power source), under the totals (board power, VRAM) and the last day's verdict from
+ * power against its limit, VRAM, and a strip of its load over the last few
+ * minutes, all the snapshot's, every second; its P-state from the power
+ * source), under the totals (board power, VRAM) and the last day's verdict from
  * the GPUs page's health (faults are rollovers, uncorrectable errors, Xids and
  * hardware slowdowns). The GPUs page has the rest.
  */
@@ -85,7 +94,7 @@ export function GpuSummaryPanel() {
         )}
       </div>
       <div className="flex-1 min-h-0 grid gap-1.5 min-w-0" style={{ gridTemplateColumns: `repeat(${cols}, minmax(0, 1fr))`, gridAutoRows: 'minmax(0, 1fr)' }}>
-        {gpus.map((g) => <GpuTile key={gpuIndexOf(g)} g={g} x={extra.get(gpuIndexOf(g))} />)}
+        {gpus.map((g) => <GpuTile key={gpuIndexOf(g)} g={g} x={extra.get(gpuIndexOf(g))} multi={gpus.length > 1} />)}
       </div>
     </div>
   )
