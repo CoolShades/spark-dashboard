@@ -193,6 +193,12 @@ export const PANEL_TYPES = {
   'host-bmc': { binds: 'none', title: 'BMC', size: { w: 4, h: 3 }, windowed: false },
   'host-thermals': { binds: 'none', title: 'Thermals & Fans', size: { w: 6, h: 2 }, windowed: false },
   'host-services': { binds: 'none', title: 'Services & Network', size: { w: 6, h: 2 }, windowed: false },
+
+  // ── Overview ────────────────────────────────────────────────────────────
+  // Summaries of the other pages: every GPU in one card, and the whole
+  // machine's health as a row of tiles that open the page with the rest.
+  'gpu-summary': { binds: 'none', title: 'GPUs', size: { w: 4, h: 3 }, windowed: false },
+  'overview-health': { binds: 'none', title: 'Health', size: { w: 12, h: 2 }, windowed: false },
 } as const satisfies Record<string, PanelTypeSpec>
 
 /** A panel type this build implements. */

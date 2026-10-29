@@ -68,6 +68,8 @@ describe('the panel type vocabulary', () => {
       'host-bmc',
       'host-thermals',
       'host-services',
+      'gpu-summary',
+      'overview-health',
     ])
   })
 
