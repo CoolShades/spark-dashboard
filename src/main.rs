@@ -162,8 +162,8 @@ struct RunArgs {
     /// Root URL of a power source for the Power panels (UPS, power supplies,
     /// energy and cost) and the GPU panels' history and health, e.g.
     /// http://127.0.0.1:18031. The dashboard relays its /now, /history, /daily,
-    /// /gpus, /gpu-history, /tokens, /token-history and /token-daily JSON
-    /// documents (docs/power.md) under
+    /// /gpus, /gpu-history, /tokens, /token-history, /token-daily, /host and
+    /// /host-history JSON documents (docs/power.md) under
     /// /api/power/; the URL itself never reaches the browser. Unset, those
     /// panels say no source is configured.
     #[arg(long, value_name = "URL", env = "SPARK_DASHBOARD_POWER_URL")]

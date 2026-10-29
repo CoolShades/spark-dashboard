@@ -4,9 +4,9 @@
 //! apcupsd, NUT, a vendor USB dongle or a time-series database, differently on
 //! every machine. So the operator runs (or already has) a small HTTP service
 //! that answers the JSON documents described in `docs/power.md` (the power
-//! documents, the GPUs page's two and the Tokens page's three), and points
-//! `--power-url` at it. This module only relays them to the browser: GET only,
-//! eight fixed paths, bounded query parameters, a short timeout and a size cap. The source's address never reaches the browser, so a service on
+//! documents, and the GPUs, Tokens and Host pages'), and points `--power-url`
+//! at it. This module only relays them to the browser: GET only, ten fixed
+//! paths, bounded query parameters, a short timeout and a size cap. The source's address never reaches the browser, so a service on
 //! loopback stays on loopback.
 //!
 //! Without `--power-url` every power route answers 404, which the Power panels
@@ -211,6 +211,29 @@ pub async fn token_daily(State(state): State<AppState>, Query(q): Query<DailyQue
         .await
 }
 
+/// The Host page's figures beyond the snapshot: sensors, BMC, arrays, drives,
+/// filesystems, links and services (docs/power.md, "Host documents").
+pub async fn host(State(state): State<AppState>) -> Response {
+    let Some(source) = state.power.as_deref() else {
+        return not_configured();
+    };
+    source.fetch(source.url("host", &[])).await
+}
+
+/// The host over the last N hours, in the history bounds.
+pub async fn host_history(
+    State(state): State<AppState>,
+    Query(q): Query<HistoryQuery>,
+) -> Response {
+    let Some(source) = state.power.as_deref() else {
+        return not_configured();
+    };
+    let hours = bounded(q.hours, DEFAULT_HISTORY_HOURS, MAX_HISTORY_HOURS);
+    source
+        .fetch(source.url("host-history", &[("hours", hours.to_string())]))
+        .await
+}
+
 pub async fn daily(State(state): State<AppState>, Query(q): Query<DailyQuery>) -> Response {
     let Some(source) = state.power.as_deref() else {
         return not_configured();
@@ -281,6 +304,7 @@ mod tests {
             )
             .route("/gpus", get(|| async { r#"{"gpus":[]}"# }))
             .route("/tokens", get(|| async { r#"{"today":{}}"# }))
+            .route("/host", get(|| async { r#"{"arrays":[]}"# }))
             .route(
                 "/token-daily",
                 get(|RawQuery(q): RawQuery| async move {
@@ -350,6 +374,12 @@ mod tests {
             .await
             .unwrap();
         assert_eq!(token_daily.text().await.unwrap(), r#"{"query":"days=31"}"#);
+
+        // And the Host page's.
+        let host = reqwest::get(format!("{base}/api/power/host"))
+            .await
+            .unwrap();
+        assert_eq!(host.text().await.unwrap(), r#"{"arrays":[]}"#);
     }
 
     #[tokio::test]
@@ -393,6 +423,8 @@ mod tests {
             "tokens",
             "token-history",
             "token-daily",
+            "host",
+            "host-history",
         ] {
             let resp = reqwest::get(format!("{base}/api/power/{path}"))
                 .await

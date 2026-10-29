@@ -298,3 +298,28 @@ fullest `kv_percent`, and the step's TTFT, ITL and end-to-end p50 and p95
 Polled every five minutes. One row per local day, oldest first: `output`,
 `prompt`, `cached`, `requests`, `hourly_output` and `hourly_prompt` (24 values,
 null for an hour with no reading) and `coverage`.
+
+## Host documents
+
+The Host page reads two more: `/api/power/host` (polled every 10 s) and
+`/api/power/host-history?hours=N` (1-168, default 24, polled every minute).
+Without them the cards still show the snapshot's CPU, cores, memory and disk
+rates.
+
+`/host` carries what the snapshot does not: `uptime_s`, `load` (1, 5, 15
+minutes), `cpu` time shares (`user`, `system`, `iowait`, ...), `clock_mhz`
+(`avg`, `max`), `temps` (`tctl`, per-CCD `ccd`, `nvme`, `dimm`, PCIe `slots`,
+`board`, `lan`), the BMC's `fans` (`name`, `rpm`), `rails` (`name`, `volts`,
+`nominal`, and `ok` within ±5 %, null without a nominal) and `bmc_flags`,
+`memory` in detail (bytes: `total`, `used`, `available`, `cached`, `buffered`,
+`committed_as`, `commit_limit`, `dirty`, `swap_total`, `swap_used`), the RAID
+`arrays` (`name`, `level`, `devices`, the kernel's member `map` such as "UU", the
+`mount` on it), every `drives` entry (`device`, `model`, `array` or `role`,
+SMART `healthy`, `temp_c`, `wear_percent`, `reallocated`, `uncorrectable`), the
+real `filesystems` (`path`, `total`, `used`, `used_percent`), the `net` links
+(`speed_mbps`, `up`, `errors_24h`, `drops_24h`), the watched `units` and
+`containers`, and HTTP `checks`.
+
+`/host-history` is five-minute steps of CPU `user`, `system` and `iowait`
+(percent), `mem_percent`, `load5`, the `tctl` peak, and network and disk
+throughput in bytes a second (`net_rx`, `net_tx`, `disk_read`, `disk_write`).
