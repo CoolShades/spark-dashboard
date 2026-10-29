@@ -130,9 +130,11 @@ The wall figure over the last N hours, polled every minute.
   "input_volts_min": 230.4, "input_volts_max": 240.4, "input_hz_min": 49.8, "input_hz_max": 50.1,
   "points": [
     { "t": 1793290500000, "total_watts": 1404, "gpu_watts": 1025, "gpus_watts": [246, 260, 268, 251],
+      "supplies_watts": [880, 460],
       "input_volts_min": 236.1, "input_volts_max": 236.1, "input_hz": 50.1, "on_battery": false }
   ],
   "gpu_labels": ["GPU 0", "GPU 1", "GPU 2", "GPU 3"],
+  "supply_labels": ["PSU 1", "PSU 2"],
   "floor_watts": 296
 }
 ```
@@ -142,6 +144,11 @@ summed draw over the same step; with `gpus_watts` and `gpu_labels` the chart
 stacks each GPU instead. The rest is `total_watts` minus the GPUs, floored at
 zero (each GPU is capped so the stack never passes the wall figure). Steps with
 `on_battery` are shaded; `floor_watts`, when given, is drawn as a dashed line.
+
+`supplies_watts` (optional) is each supply's own reading over the step, in
+`supply_labels` order, whose names match `supplies[].name` in `/now`: the side
+it meters, as there. The Power supplies panel draws it as each supply's 24 h
+chart, with its average and peak against the rating.
 
 ## `GET /daily?days=N`
 
@@ -162,4 +169,4 @@ a day at 0 has no bar.
 Anything that serves these three documents works. A source reading apcupsd's
 network information server, NUT's `upsd`, a supply's hwmon files or an InfluxDB
 or Prometheus history is a few hundred lines. Keep the expensive parts cached:
-`/now` is polled every 5 s by every open dashboard.
+`/now` is polled every 2 s by every open dashboard.

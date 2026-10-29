@@ -3,6 +3,7 @@ import { fireEvent, render, screen, within } from '@testing-library/react'
 import type { ReactNode } from 'react'
 import { MetricsStoreContext } from '../hooks/useMetricsStore'
 import { resetPowerPollers } from '../hooks/usePowerDocument'
+import { formatClock } from '../lib/power'
 import { MetricsHistoryStore } from '../lib/metricsHistoryStore'
 import { PowerBaselinePanel } from '../components/grid/panels/power/PowerBaselinePanel'
 import { PowerCostPanel } from '../components/grid/panels/power/PowerCostPanel'
@@ -403,5 +404,29 @@ describe('a UPS that has stopped answering', () => {
     expect(await screen.findByText('Not answering')).toBeInTheDocument()
     expect(screen.queryByText('Online')).toBeNull()
     expect(screen.getByText(/no reading for 9 min/)).toBeInTheDocument()
+  })
+})
+
+describe('each supply\'s last 24 h', () => {
+  it('fills the card under the rails, with the peak against the rating, and says since when a supply was read', async () => {
+    const t = [10, 11, 12].map((h) => Date.UTC(2026, 9, 29, h))
+    const h = history([[t[0], 1000], [t[1], 1400], [t[2], 1200]])
+    h.supply_labels = ['AX1600i', 'HX850i']
+    h.points = h.points.map((p, i) => ({ ...p, supplies_watts: [[600, 900, 700][i], [null, 400, 460][i]] }))
+    respondBy({ now: NOW, history: h })
+    withStore(<PowerSuppliesPanel />)
+    const ax = await screen.findByLabelText('AX1600i, last 24 h')
+    expect(ax.textContent).toContain('24 h')
+    expect(ax.textContent).toContain(`avg 733 W · peak 900 W (56 %) at ${formatClock(t[1])}`)
+    const hx = screen.getByLabelText('HX850i, last 24 h')
+    expect(hx.textContent).toContain(`since ${formatClock(t[1])}`)
+    expect(hx.textContent).toContain(`peak 460 W (54 %) at ${formatClock(t[2])}`)
+  })
+
+  it('leaves the space empty for a source that sends no per-supply series', async () => {
+    respondBy({ now: NOW, history: history([[Date.UTC(2026, 9, 29, 10), 300], [Date.UTC(2026, 9, 29, 11), 900]]) })
+    withStore(<PowerSuppliesPanel />)
+    expect(await screen.findByText('HX850i · out')).toBeInTheDocument()
+    expect(screen.queryByLabelText(/last 24 h/)).toBeNull()
   })
 })

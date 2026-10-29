@@ -154,6 +154,8 @@ export interface PowerHistoryPoint {
   input_hz: number | null
   /** What the UPS hands the load over the step: equal to the input while it passes mains through. */
   output_volts?: number | null
+  /** Each supply's own output over the step, in `supply_labels` order; optional, for the supplies' 24 h charts. */
+  supplies_watts?: Array<number | null>
   on_battery: boolean
 }
 
@@ -170,6 +172,8 @@ export interface PowerHistory {
   input_volts_max: number | null
   input_hz_min: number | null
   input_hz_max: number | null
+  /** Names for `points[].supplies_watts`, matching `PowerSupply.name` in `/now`. */
+  supply_labels?: string[]
   /** Names for `points[].gpus_watts`, e.g. "GPU 0 · slot 2". */
   gpu_labels?: string[]
   /** The idle floor, drawn as a dashed line. */
