@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react'
+import { createPortal } from 'react-dom'
 import type { PowerDocumentState } from '@/hooks/usePowerDocument'
 import { formatClock } from '@/lib/power'
 import { PanelNotice } from '../PanelNotice'
@@ -122,5 +123,31 @@ export function Sparkline({ points, color, label }: { points: ReadonlyArray<{ at
     <svg viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none" className="w-full h-6" aria-label={label}>
       <path d={d} fill="none" stroke={color} strokeWidth={1.3} vectorEffect="non-scaling-stroke" />
     </svg>
+  )
+}
+
+/**
+ * Where a hover card points, in viewport pixels: the hovered element's top and
+ * bottom, and the x it hangs from (an hour's centre, or the grid's edge on the
+ * side a day was hovered from).
+ */
+export type Anchor = { top: number; bottom: number; x: number; align: 'center' | 'left' | 'right' }
+/** A card opens above its row when the viewport has this much room there, below it otherwise. */
+const CARD_ROOM = 200
+
+/**
+ * A hover card on a layer of its own (portalled to <body>, fixed to the
+ * viewport): a panel clips whatever overflows it, and a hover card is often
+ * taller than a two-row panel. It opens above the row when there is room, else below.
+ */
+export function Floating({ at, className, children }: { at: Anchor; className: string; children: ReactNode }) {
+  const above = at.top > CARD_ROOM
+  const tx = at.align === 'center' ? '-50%' : at.align === 'right' ? '-100%' : '0'
+  return createPortal(
+    <div className={`pointer-events-none fixed z-50 ${className}`}
+      style={{ left: at.x, top: above ? at.top - 6 : at.bottom + 6, transform: `translate(${tx}, ${above ? '-100%' : '0'})` }}>
+      {children}
+    </div>,
+    document.body,
   )
 }

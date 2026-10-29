@@ -1,11 +1,10 @@
-import { useMemo, useRef, useState, type ReactNode } from 'react'
-import { createPortal } from 'react-dom'
+import { useMemo, useRef, useState } from 'react'
 import { POWER_POLL_MS, usePowerDocument } from '@/hooks/usePowerDocument'
 import { formatDay, formatKwh, formatMoney, formatWattsValue } from '@/lib/power'
 import { NVIDIA_THEME } from '@/lib/theme'
 import type { PowerDaily, PowerDay, PowerNow } from '@/types/power'
 import { PanelNotice } from '../PanelNotice'
-import { PowerNotice } from './PowerParts'
+import { Floating, PowerNotice, type Anchor } from './PowerParts'
 
 const IDLE_COLOR = '#71717a'
 /** A day with fewer readings than this is marked partial. */
@@ -14,16 +13,8 @@ const HOUR_TICKS = [0, 6, 12, 18]
 /** A bar shorter than this share of its column has no room for its kWh inside, so the figure sits just past its end. */
 const LABEL_INSIDE = 22
 
-/**
- * Where a hover card points, in viewport pixels: the hovered element's top and
- * bottom, and the x it hangs from (an hour's centre, or the grid's edge on the
- * side a day was hovered from).
- */
-type Anchor = { top: number; bottom: number; x: number; align: 'center' | 'left' | 'right' }
 type HourHover = { day: PowerDay; hour: number; at: Anchor }
 type DayHover = { day: PowerDay; at: Anchor }
-/** A card opens above its row when the viewport has this much room there, below it otherwise. */
-const CARD_ROOM = 200
 
 /** Mix two #rrggbb colours: t = 0 gives a, t = 1 gives b. */
 function mix(a: string, b: string, t: number): string {
@@ -270,23 +261,6 @@ function DayTip({ hover, currency, today }: { hover: DayHover; currency: string;
         </>
       )}
     </Floating>
-  )
-}
-
-/**
- * A hover card on a layer of its own (portalled to <body>, fixed to the
- * viewport): the panel clips whatever overflows it, and a day's card is taller
- * than a two-row panel. It opens above the row when there is room, else below.
- */
-function Floating({ at, className, children }: { at: Anchor; className: string; children: ReactNode }) {
-  const above = at.top > CARD_ROOM
-  const tx = at.align === 'center' ? '-50%' : at.align === 'right' ? '-100%' : '0'
-  return createPortal(
-    <div className={`pointer-events-none fixed z-50 ${className}`}
-      style={{ left: at.x, top: above ? at.top - 6 : at.bottom + 6, transform: `translate(${tx}, ${above ? '-100%' : '0'})` }}>
-      {children}
-    </div>,
-    document.body,
   )
 }
 
