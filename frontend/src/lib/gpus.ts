@@ -78,3 +78,14 @@ export function utilColor(percent: number | null): string {
 export function shortGpuName(name: string | null): string | null {
   return name ? name.replace(/^NVIDIA\s+(GeForce\s+)?/i, '') : null
 }
+
+/** A GPU temperature as a tile colour: amber from 80 °C (near a 3090-class 83 °C target), red from 90 (near 93 max). */
+export function gpuTempColor(celsius: number | null): string {
+  if (celsius === null) return '#a1a1aa'
+  if (celsius >= 90) return NVIDIA_THEME.critical
+  if (celsius >= 80) return NVIDIA_THEME.warning
+  return '#f4f4f5'
+}
+
+/** Time under the driver's thermal cap worth an amber line: a few seconds a day is noise. */
+export const THERMAL_NOTE_S = 60

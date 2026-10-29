@@ -1,7 +1,6 @@
 import { useMetricSeries } from '@/hooks/useMetricsStore'
 import { POWER_POLL_MS, usePowerDocument } from '@/hooks/usePowerDocument'
-import { tempColor } from '@/lib/format'
-import { heldBy, rateParts, shortGpuName, utilColor } from '@/lib/gpus'
+import { gpuTempColor, heldBy, rateParts, shortGpuName, utilColor } from '@/lib/gpus'
 import { gpuIndexOf } from '@/lib/identity'
 import type { DataPoint } from '@/lib/metricsHistoryStore'
 import { formatWattsValue, LOAD_THRESHOLDS } from '@/lib/power'
@@ -112,7 +111,7 @@ export function GpuCardPanel({ panel }: PanelContentProps) {
         <PowerStat label="Power" value={g.power_watts !== null ? formatWattsValue(g.power_watts) : '—'} unit="W"
           sub={limit ? `of ${formatWattsValue(limit)} W` : undefined} />
         <PowerStat label="Temp" value={g.temperature_celsius !== null ? Math.round(g.temperature_celsius) : '—'} unit="°C"
-          color={tempColor(g.temperature_celsius)} sub={summary?.temp_max != null ? `max ${Math.round(summary.temp_max)} today` : undefined} />
+          color={gpuTempColor(g.temperature_celsius)} sub={summary?.temp_max != null ? `max ${Math.round(summary.temp_max)} today` : undefined} />
         <PowerStat label="Fan" value={g.fan_speed_percent !== null ? Math.round(g.fan_speed_percent) : '—'} unit="%"
           sub={g.fan_speed_percent === 0 ? 'stopped' : undefined} />
       </div>

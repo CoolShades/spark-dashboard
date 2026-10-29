@@ -216,3 +216,19 @@ describe('the GPUs page helpers', () => {
     expect(formatCount(13_512)).toBe('14k')
   })
 })
+
+describe('the GPU page’s colours', () => {
+  it('draws a GPU temperature white, then amber near the target, red near the maximum', async () => {
+    const { gpuTempColor } = await import('../lib/gpus')
+    expect(gpuTempColor(30)).toBe('#f4f4f5')
+    expect(gpuTempColor(82)).not.toBe('#f4f4f5')
+    expect(gpuTempColor(91)).not.toBe(gpuTempColor(82))
+  })
+
+  it('keeps a few seconds of thermal capping grey, and a minute or more amber', async () => {
+    respondBy({ gpus: doc([{ health: { ...HEALTHY, thermal_s: 6 } }, { health: { ...HEALTHY, thermal_s: 136 } }]) })
+    withStore(<GpuHealthPanel />, [gpu(0), gpu(1)])
+    expect(await screen.findByText('clocks capped for heat 6 s')).toHaveClass('text-zinc-500')
+    expect(screen.getByText('clocks capped for heat 2 min')).toHaveClass('text-amber-400/90')
+  })
+})

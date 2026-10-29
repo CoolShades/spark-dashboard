@@ -1,5 +1,5 @@
 import { POWER_POLL_MS, usePowerDocument } from '@/hooks/usePowerDocument'
-import { formatCount } from '@/lib/gpus'
+import { formatCount, THERMAL_NOTE_S } from '@/lib/gpus'
 import { formatClock, formatRuntime } from '@/lib/power'
 import { NVIDIA_THEME } from '@/lib/theme'
 import type { GpuDoc, GpuExtra } from '@/types/gpus'
@@ -65,11 +65,14 @@ function GpuBlock({ g }: { g: GpuExtra }) {
         <Fault name="Xid" value={h.xid} />
         <Fault name="HW slowdown" value={h.slowdown_s} unit="s" />
       </div>
-      <div className="text-[10px] 2xl:text-xs font-mono tabular-nums text-zinc-500 truncate">
+      {/* Wraps rather than cuts: the counts are only useful whole. */}
+      <div className="text-[10px] 2xl:text-xs font-mono tabular-nums text-zinc-500 break-words">
         correctable: {formatCount(h.replays)} replays · {formatCount(h.naks)} NAKs · {formatCount(h.retrains)} retrains · {formatCount(h.aer_corrected)} AER
       </div>
       {(h.thermal_s ?? 0) > 0 && (
-        <div className="text-[10px] 2xl:text-xs font-mono tabular-nums text-amber-400/90 truncate">
+        // Amber only from a minute a day: a few seconds of the driver's thermal cap (often the memory, which a 3090 does
+        // not report) is noise.
+        <div className={`text-[10px] 2xl:text-xs font-mono tabular-nums truncate ${h.thermal_s! >= THERMAL_NOTE_S ? 'text-amber-400/90' : 'text-zinc-500'}`}>
           clocks capped for heat {formatRuntime(h.thermal_s!)}
         </div>
       )}
