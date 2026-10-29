@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect, vi } from 'vitest'
 import {
   batteryColor,
   DEFAULT_MAINS,
@@ -138,5 +138,43 @@ describe('the wall split', () => {
     expect(sumGpuWatts([{ power_watts: 246.5 }, { power_watts: null }, { power_watts: 280 }])).toBe(526.5)
     expect(sumGpuWatts([{ power_watts: null }])).toBeNull()
     expect(sumGpuWatts(undefined)).toBeNull()
+  })
+})
+
+describe('power documents across a tab switch', () => {
+  it('paints a remembered document at once when a panel mounts again, and prefetches pages not opened yet', async () => {
+    const { prefetchPowerDocuments, resetPowerPollers, usePowerDocument } = await import('../hooks/usePowerDocument')
+    const { renderHook, waitFor } = await import('@testing-library/react')
+    resetPowerPollers()
+    let calls = 0
+    vi.stubGlobal('fetch', vi.fn(async (url: string) => {
+      calls += 1
+      return new Response(JSON.stringify({ path: String(url) }), { status: 200 })
+    }))
+    const first = renderHook(() => usePowerDocument<{ path: string }>('host', 10_000))
+    await waitFor(() => expect(first.result.current.status).toBe('ready'))
+    first.unmount()
+    // Mounted again (the tab switched back to): the document is there on the first render, before any new poll lands.
+    const again = renderHook(() => usePowerDocument<{ path: string }>('host', 10_000))
+    expect(again.result.current.status).toBe('ready')
+    expect(again.result.current.data?.path).toContain('/api/power/host')
+    again.unmount()
+    await prefetchPowerDocuments(['tokens'])
+    const fresh = renderHook(() => usePowerDocument<{ path: string }>('tokens', 15_000))
+    expect(fresh.result.current.data?.path).toContain('/api/power/tokens')
+    fresh.unmount()
+    expect(calls).toBeGreaterThanOrEqual(3)
+    resetPowerPollers()
+    vi.unstubAllGlobals()
+  })
+
+  it('stops prefetching at the first 404: no power source', async () => {
+    const { prefetchPowerDocuments, resetPowerPollers } = await import('../hooks/usePowerDocument')
+    resetPowerPollers()
+    const fetchMock = vi.fn(async () => new Response('no power source configured', { status: 404 }))
+    vi.stubGlobal('fetch', fetchMock)
+    await prefetchPowerDocuments()
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+    vi.unstubAllGlobals()
   })
 })

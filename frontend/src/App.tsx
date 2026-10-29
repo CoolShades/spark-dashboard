@@ -1,8 +1,9 @@
-import { useCallback, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { useDashboardConfiguration } from './hooks/useDashboardConfiguration'
 import { useMetrics } from './hooks/useMetrics'
 import { useMetricsIngest } from './hooks/useMetricsIngest'
 import { useRoute } from './hooks/useRoute'
+import { prefetchPowerDocuments } from './hooks/usePowerDocument'
 import { LogStreamProvider } from './hooks/LogStreamProvider'
 import { MetricsStoreProvider } from './hooks/MetricsStoreProvider'
 import { AppHeader } from './components/AppHeader'
@@ -135,6 +136,16 @@ function findPage(document: DashboardDocument, pageId: string): DashboardPage | 
  */
 function App() {
   const route = useRoute()
+  // Every page's power, GPU, token and host documents, fetched once soon after load and every few minutes after,
+  // so switching to a page paints its cards at once instead of waiting on the first poll.
+  useEffect(() => {
+    const first = setTimeout(() => void prefetchPowerDocuments(), 1500)
+    const again = setInterval(() => void prefetchPowerDocuments(), 5 * 60_000)
+    return () => {
+      clearTimeout(first)
+      clearInterval(again)
+    }
+  }, [])
 
   return (
     <MetricsStoreProvider>
