@@ -29,7 +29,10 @@ export function PowerSuppliesPanel() {
     <div className="h-full flex flex-col justify-center gap-3 min-w-0 overflow-hidden">
       {supplies.map((s) => {
         const r = reading(s)
+        // Both sides known: say so, with the efficiency they imply. One side only: the bar says which.
+        const both = s.input_watts !== null && s.output_watts !== null && s.input_watts > 0
         const facts = [
+          both ? `out ${Math.round(s.output_watts!)} W · ${Math.round((s.output_watts! / s.input_watts!) * 100)} % efficient` : null,
           s.temperature_c !== null ? `${s.temperature_c.toFixed(1)} °C` : null,
           s.fan_rpm !== null ? (s.fan_rpm > 0 ? `fan ${Math.round(s.fan_rpm)} rpm` : 'fan off') : null,
           s.input_volts !== null ? `${Math.round(s.input_volts)} V in` : null,

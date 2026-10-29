@@ -82,7 +82,7 @@ const NOW: PowerNow = {
   other_loads: [{ name: 'Router + switch', watts: 25, estimated: true }],
   supplies: [
     {
-      name: 'AX1600i', input_watts: 646, output_watts: null, capacity_watts: 1600, temperature_c: 54.25, fan_rpm: 780, input_volts: 233, warning: 'output current warning',
+      name: 'AX1600i', input_watts: 646, output_watts: 600, capacity_watts: 1600, temperature_c: 54.25, fan_rpm: 780, input_volts: 233, warning: 'output current warning',
       connectors: [
         { name: '12V #0', volts: 12.05, amps: 0, watts: 0, ocp_amps: null },
         { name: '12V #6', volts: 12.03, amps: 5.4, watts: 64, ocp_amps: 40.5 },
@@ -208,6 +208,7 @@ describe('Power panels', () => {
     expect(screen.getByText('⚠ output current warning')).toBeInTheDocument()
     expect(screen.getByText(/fan off/)).toBeInTheDocument()
     expect(screen.getByText('12V')).toBeInTheDocument()
+    expect(screen.getByText(/out 600 W · 93 % efficient/)).toBeInTheDocument()
     expect(screen.getByText('#6')).toBeInTheDocument()
     expect(screen.getByText('5.4')).toBeInTheDocument()
     expect(screen.getByText('24 h 12.01–12.14')).toBeInTheDocument()
