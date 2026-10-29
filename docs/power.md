@@ -190,3 +190,58 @@ Anything that serves these three documents works. A source reading apcupsd's
 network information server, NUT's `upsd`, a supply's hwmon files or an InfluxDB
 or Prometheus history is a few hundred lines. Keep the expensive parts cached:
 `/now` is polled every 2 s by every open dashboard.
+
+## GPU documents
+
+The GPUs page reads two more documents from the same source, for what NVML's
+snapshot cannot carry: a day of history and the link and fault counters an
+operator checks after a crash. The dashboard relays them like the others,
+under `/api/power/gpus` and `/api/power/gpu-history?hours=N` (1-168, default
+24). Without them the GPU cards still show the snapshot's live figures; the
+24 h, thermals and health panels say no source is configured.
+
+### `GET /gpus`
+
+Polled every 5 s. Per GPU, in NVML index order:
+
+```json
+{ "at": "2026-10-29T21:40:00+00:00", "driver": "615.71.09", "health_at": "2026-10-29T21:37:19+00:00",
+  "gpus": [ { "index": 1, "label": "GPU 1 · slot 7", "slot": 7, "bus": "02:00.0", "pstate": "P2",
+    "clock_reasons": ["power cap"], "enforced_power_limit_watts": 350, "pcie_gen": 4, "pcie_width": 16,
+    "memory_util_percent": 41, "vbios": "94.02.32.00.02", "updated": "2026-10-29T21:39:58Z",
+    "health": { "link_gen_max": 4, "link_width_max": 16, "replays": 26, "naks": 3462, "retrains": 10424,
+      "aer_corrected": 3515, "rollovers": 0, "uncorrectable": 0, "xid": 0, "xid_last": null,
+      "power_cap_s": 2330, "thermal_s": 136, "slowdown_s": 0,
+      "since_boot": { "replays": 36, "retrains": 13512, "rollovers": 0 } } } ] }
+```
+
+- `clock_reasons` is NVML's clocks-event reasons in words (`idle`, `power cap`,
+  `thermal`, `HW slowdown`, `HW thermal`, `power brake`, ...), an unnamed bit by
+  value (`0x400`). The card names the most serious while the GPU is at 10 %
+  load or more, and says `idle` below that: NVML flags a power cap on idle cards.
+- `health` covers the last 24 h. `link_*_max` is the best link the GPU trained
+  to (an idle card drops to Gen1). Replays, NAKs, retrains (L0 to recovery) and
+  corrected AER reports are correctable: drawn grey. Rollovers, uncorrectable
+  errors (the GPU's fatal and non-fatal counters plus uncorrectable AER), Xids
+  and seconds of hardware slowdown are faults: drawn red when not zero.
+  `thermal_s` is time under the driver's software thermal cap. `health` may be
+  null until the source has computed it.
+
+### `GET /gpu-history?hours=N`
+
+Polled every minute. Steps (10 minutes for a day) oldest first, each with
+every GPU in `labels` order, a summary per GPU, and the cards' own limits:
+
+```json
+{ "hours": 24, "step_seconds": 600, "labels": ["GPU 0 · slot 2", "GPU 1 · slot 7"],
+  "points": [ { "t": 1793238000000, "gpus": [
+    { "util": 91, "watts": 235, "temp": 77, "fan": 50, "power_cap": 0.13, "slowdown": 0 },
+    { "util": 91, "watts": 215, "temp": 68, "fan": 36, "power_cap": 0.13, "slowdown": 0.01 } ] } ],
+  "summary": [ { "index": 0, "busy_hours": 1.7, "util_avg": 6, "kwh": 1.28, "temp_max": 79,
+                 "temp_max_at": "2026-10-29T01:50:00+00:00" } ],
+  "limits": { "target_c": 83, "max_operating_c": 93, "slowdown_c": 95 } }
+```
+
+`util`, `watts` and `fan` are the step's means and `temp` its peak;
+`power_cap` and `slowdown` are the share of the step with the clocks held by
+each. `busy_hours` counts steps at 10 % load or more.

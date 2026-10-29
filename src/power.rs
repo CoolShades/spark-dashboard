@@ -3,10 +3,10 @@
 //! The dashboard cannot read a UPS or a power supply itself: they sit behind
 //! apcupsd, NUT, a vendor USB dongle or a time-series database, differently on
 //! every machine. So the operator runs (or already has) a small HTTP service
-//! that answers the three JSON documents described in `docs/power.md`, and
-//! points `--power-url` at it. This module only relays them to the browser:
-//! GET only, three fixed paths, bounded query parameters, a short timeout and
-//! a size cap. The source's address never reaches the browser, so a service on
+//! that answers the JSON documents described in `docs/power.md` (the power
+//! documents, and the GPUs page's two), and points `--power-url` at it. This
+//! module only relays them to the browser: GET only, five fixed paths, bounded
+//! query parameters, a short timeout and a size cap. The source's address never reaches the browser, so a service on
 //! loopback stays on loopback.
 //!
 //! Without `--power-url` every power route answers 404, which the Power panels
@@ -157,6 +157,26 @@ pub async fn history(State(state): State<AppState>, Query(q): Query<HistoryQuery
         .await
 }
 
+/// The GPUs page's live extras and 24 h health (docs/power.md, "GPU documents"):
+/// what NVML's snapshot does not carry, from the same source.
+pub async fn gpus(State(state): State<AppState>) -> Response {
+    let Some(source) = state.power.as_deref() else {
+        return not_configured();
+    };
+    source.fetch(source.url("gpus", &[])).await
+}
+
+/// Each GPU over the last N hours, in the history document's bounds.
+pub async fn gpu_history(State(state): State<AppState>, Query(q): Query<HistoryQuery>) -> Response {
+    let Some(source) = state.power.as_deref() else {
+        return not_configured();
+    };
+    let hours = bounded(q.hours, DEFAULT_HISTORY_HOURS, MAX_HISTORY_HOURS);
+    source
+        .fetch(source.url("gpu-history", &[("hours", hours.to_string())]))
+        .await
+}
+
 pub async fn daily(State(state): State<AppState>, Query(q): Query<DailyQuery>) -> Response {
     let Some(source) = state.power.as_deref() else {
         return not_configured();
@@ -224,6 +244,13 @@ mod tests {
             .route(
                 "/daily",
                 get(|| async { (StatusCode::INTERNAL_SERVER_ERROR, "boom") }),
+            )
+            .route("/gpus", get(|| async { r#"{"gpus":[]}"# }))
+            .route(
+                "/gpu-history",
+                get(|RawQuery(q): RawQuery| async move {
+                    format!(r#"{{"query":"{}"}}"#, q.unwrap_or_default())
+                }),
             );
         let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
         let addr = listener.local_addr().unwrap();
@@ -262,6 +289,16 @@ mod tests {
         .await
         .unwrap();
         assert_eq!(history.text().await.unwrap(), r#"{"query":"hours=168"}"#);
+
+        // The GPUs page's documents, under the same rules.
+        let gpus = reqwest::get(format!("{base}/api/power/gpus"))
+            .await
+            .unwrap();
+        assert_eq!(gpus.text().await.unwrap(), r#"{"gpus":[]}"#);
+        let gpu_history = reqwest::get(format!("{base}/api/power/gpu-history?hours=0&x=1"))
+            .await
+            .unwrap();
+        assert_eq!(gpu_history.text().await.unwrap(), r#"{"query":"hours=1"}"#);
     }
 
     #[tokio::test]
@@ -296,7 +333,7 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let base = spawn_dashboard(None, dir.path()).await;
 
-        for path in ["now", "history", "daily"] {
+        for path in ["now", "history", "daily", "gpus", "gpu-history"] {
             let resp = reqwest::get(format!("{base}/api/power/{path}"))
                 .await
                 .unwrap();
