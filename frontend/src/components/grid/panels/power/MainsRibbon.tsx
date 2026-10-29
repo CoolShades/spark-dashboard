@@ -1,4 +1,5 @@
 import { useMemo } from 'react'
+import { Zap } from 'lucide-react'
 import { DEFAULT_MAINS, formatClock } from '@/lib/power'
 import { NVIDIA_THEME } from '@/lib/theme'
 import type { MainsLimits, PowerHistory } from '@/types/power'
@@ -80,7 +81,15 @@ export function MainsRibbon({
 
   return (
     <div className="shrink-0 flex flex-col gap-0.5 min-w-0">
-      <div className="relative h-2 rounded-sm overflow-hidden bg-zinc-800/60" style={{ marginLeft: inset.left, marginRight: inset.right }}
+      <div className="flex items-center min-w-0">
+      {/* The ribbon's mark, in the watts axis's column: a bolt in a ring, coloured like the day's worst band. */}
+      <span className="flex shrink-0 justify-end pr-1.5" style={{ width: inset.left }} aria-hidden="true">
+        <span className="flex h-4 w-4 items-center justify-center rounded-full border"
+          style={{ borderColor: fine ? `${NVIDIA_THEME.accent}99` : `${NVIDIA_THEME.warning}cc`, color: fine ? NVIDIA_THEME.accent : NVIDIA_THEME.warning }}>
+          <Zap size={10} strokeWidth={2.5} />
+        </span>
+      </span>
+      <div className="relative flex-1 h-2 rounded-sm overflow-hidden bg-zinc-800/60" style={{ marginRight: inset.right }}
         aria-label="Mains quality, last 24 h">
         {segments.filter((s) => s.band !== 'none').map((s) => (
           <div key={s.from} className="absolute top-0 h-full"
@@ -92,6 +101,7 @@ export function MainsRibbon({
             }}
             title={`${formatClock(s.from)}–${formatClock(Math.min(s.to, t1))} · ${BAND_LABEL[s.band as Exclude<Band, 'none'>]} · mains in ${range(s.lo, s.hi, 1)} V${s.out !== null ? ` · UPS out ${s.out.toFixed(1)} V` : ''}`} />
         ))}
+      </div>
       </div>
       <div className="flex items-center gap-3 text-[10px] 2xl:text-xs font-mono tabular-nums text-zinc-500 min-w-0 whitespace-nowrap overflow-hidden" style={{ marginLeft: inset.left }}>
         <span className="text-zinc-400">mains</span>

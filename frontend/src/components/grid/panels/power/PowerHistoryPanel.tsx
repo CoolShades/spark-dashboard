@@ -128,17 +128,31 @@ export function PowerHistoryPanel() {
             content={
               <ChartTooltipContent
                 labelFormatter={(_, p) => formatClock(Number(p?.[0]?.payload?.t ?? 0))}
-                formatter={(value, name, item) => {
+                formatter={(value, name, item, index) => {
                   // The tooltip's own item styling (indicator, muted label, foreground value), with each series in its
                   // own unit: the stock rendering prints bare numbers, and a volts range as "236.1,237.6".
                   const label = (config as Record<string, { label: string }>)[String(name)]?.label ?? String(name)
                   const text = `${formatWattsValue(Number(value))} W`
                   const color = (item?.color as string | undefined) ?? (config as Record<string, { color: string }>)[String(name)]?.color
-                  return (
+                  const line = (
                     <div className="flex w-full items-center gap-2">
                       <span className="h-2.5 w-2.5 shrink-0 rounded-[2px]" style={{ backgroundColor: color }} />
                       <span className="text-muted-foreground">{label}</span>
                       <span className="ml-auto pl-3 font-mono font-medium text-foreground tabular-nums">{text}</span>
+                    </div>
+                  )
+                  // After the last series, the step's total at the wall: the stack's own height.
+                  if (index !== keys.length) return line
+                  const row = (item?.payload ?? {}) as Record<string, number | null>
+                  const total = ['rest', ...keys.map((k) => k.key)].reduce((sum, k) => sum + (row[k] ?? 0), 0)
+                  return (
+                    <div className="grid w-full gap-1.5">
+                      {line}
+                      <div className="flex w-full items-center gap-2 border-t border-border/50 pt-1.5">
+                        <span className="h-2.5 w-2.5 shrink-0" />
+                        <span className="font-medium text-foreground">Total</span>
+                        <span className="ml-auto pl-3 font-mono font-medium text-foreground tabular-nums">{formatWattsValue(total)} W</span>
+                      </div>
                     </div>
                   )
                 }}
