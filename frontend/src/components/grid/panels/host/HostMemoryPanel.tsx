@@ -108,8 +108,8 @@ export function HostMemoryPanel() {
           )
         }
         return (
-          <div className="mt-auto flex flex-col gap-0.5 min-w-0">
-            <div className="h-24 2xl:h-28 flex flex-col gap-[2px] px-[12%]" aria-label="DIMMs as they sit on the board" onMouseLeave={() => setHover(null)}>
+          <div className="flex-1 min-h-0 flex flex-col gap-0.5 min-w-0 mt-1">
+            <div className="flex-1 min-h-[56px] max-h-40 flex flex-col gap-[2px] px-[12%]" aria-label="DIMMs as they sit on the board" onMouseLeave={() => setHover(null)}>
               {banks.map((bank, bi) => (
                 <div key={bi} className="contents">
                   {bank.map(stick)}
@@ -127,7 +127,7 @@ export function HostMemoryPanel() {
                 </div>
               ))}
             </div>
-            <p className="text-[10px] 2xl:text-xs text-zinc-500 font-mono tabular-nums flex items-center gap-2 min-w-0">
+            <p className="shrink-0 text-[10px] 2xl:text-xs text-zinc-500 font-mono tabular-nums flex items-center gap-2 min-w-0">
               <span className="truncate">{d.temps.dimm.length} DIMMs{dimm !== null ? <> · hottest <span className="text-zinc-300">{slotName(d.temps.dimm.find((x) => x.c === dimm)!.name)} {Math.round(dimm)} °C</span></> : null}</span>
               <span className="ml-auto flex items-center gap-1 shrink-0">
                 {THERMAL_STOPS[0][0]}°
