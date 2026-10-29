@@ -181,6 +181,17 @@ export const PANEL_TYPES = {
   'tokens-history': { binds: 'none', title: 'Tokens · 24 h', size: { w: 12, h: 3 }, windowed: false },
   'tokens-daily': { binds: 'none', title: 'Tokens · 7 days', size: { w: 6, h: 2 }, windowed: false },
   'tokens-ledger': { binds: 'none', title: 'Token Ledger', size: { w: 6, h: 2 }, windowed: false },
+
+  // ── Host ────────────────────────────────────────────────────────────────
+  // The machine itself: the snapshot's CPU, memory and disk rates, with the
+  // sensors, BMC, arrays, drives, links, services and a day of history from the
+  // power source (--power-url, docs/power.md). The cards are windowed for their strips.
+  'host-cpu': { binds: 'none', title: 'Host · CPU', size: { w: 4, h: 3 } },
+  'host-memory': { binds: 'none', title: 'Host · Memory', size: { w: 4, h: 3 } },
+  'host-storage': { binds: 'none', title: 'Host · Storage', size: { w: 4, h: 3 } },
+  'host-history': { binds: 'none', title: 'Host · 24 h', size: { w: 12, h: 3 }, windowed: false },
+  'host-thermals': { binds: 'none', title: 'Thermals & Fans', size: { w: 6, h: 2 }, windowed: false },
+  'host-services': { binds: 'none', title: 'Services & Network', size: { w: 6, h: 2 }, windowed: false },
 } as const satisfies Record<string, PanelTypeSpec>
 
 /** A panel type this build implements. */

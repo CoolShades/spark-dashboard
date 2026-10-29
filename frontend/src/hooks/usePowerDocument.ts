@@ -103,7 +103,7 @@ export function usePowerDocument<T>(path: string, intervalMs: number): PowerDocu
 }
 
 /** Polling intervals: live readings every 2 s; history and daily totals move slowly; the GPUs' extras every 5 s. */
-export const POWER_POLL_MS = { now: 2_000, history: 60_000, daily: 300_000, gpus: 5_000, gpuHistory: 60_000, tokens: 15_000, tokenHistory: 60_000, tokenDaily: 300_000 } as const
+export const POWER_POLL_MS = { now: 2_000, history: 60_000, daily: 300_000, gpus: 5_000, gpuHistory: 60_000, tokens: 15_000, tokenHistory: 60_000, tokenDaily: 300_000, host: 10_000, hostHistory: 60_000 } as const
 
 /** For specs: forget every poller, as if no panel had ever mounted. */
 export function resetPowerPollers(): void {

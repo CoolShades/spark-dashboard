@@ -61,6 +61,12 @@ describe('the panel type vocabulary', () => {
       'tokens-history',
       'tokens-daily',
       'tokens-ledger',
+      'host-cpu',
+      'host-memory',
+      'host-storage',
+      'host-history',
+      'host-thermals',
+      'host-services',
     ])
   })
 

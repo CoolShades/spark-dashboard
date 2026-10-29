@@ -41,6 +41,12 @@ import { GpuCardPanel } from './panels/gpus/GpuCardPanel'
 import { GpuDayPanel } from './panels/gpus/GpuDayPanel'
 import { GpuHealthPanel } from './panels/gpus/GpuHealthPanel'
 import { GpuThermalsPanel } from './panels/gpus/GpuThermalsPanel'
+import { HostCpuPanel } from './panels/host/HostCpuPanel'
+import { HostHistoryPanel } from './panels/host/HostHistoryPanel'
+import { HostMemoryPanel } from './panels/host/HostMemoryPanel'
+import { HostServicesPanel } from './panels/host/HostServicesPanel'
+import { HostStoragePanel } from './panels/host/HostStoragePanel'
+import { HostThermalsPanel } from './panels/host/HostThermalsPanel'
 import { TokensDailyPanel } from './panels/tokens/TokensDailyPanel'
 import { TokensHistoryPanel } from './panels/tokens/TokensHistoryPanel'
 import { TokensLatencyPanel } from './panels/tokens/TokensLatencyPanel'
@@ -113,6 +119,12 @@ const PANEL_CONTENT: Partial<Record<PanelType, ComponentType<PanelContentProps>>
   'tokens-history': TokensHistoryPanel,
   'tokens-daily': TokensDailyPanel,
   'tokens-ledger': TokensLedgerPanel,
+  'host-cpu': HostCpuPanel,
+  'host-memory': HostMemoryPanel,
+  'host-storage': HostStoragePanel,
+  'host-history': HostHistoryPanel,
+  'host-thermals': HostThermalsPanel,
+  'host-services': HostServicesPanel,
 }
 
 /**
