@@ -27,8 +27,8 @@ function batteryRuns(points: PowerHistory['points'], stepMs: number): Array<[num
 }
 
 /**
- * The last 24 hours at the wall, stacked as each GPU and everything else, the
- * way Home Assistant shows "untracked" consumption under the metered devices.
+ * The last 24 hours at the wall, stacked as the rest of the system (on the
+ * floor, as it never goes away) with each GPU on top of it.
  * A source that sends no per-GPU series gets one GPUs band. The dashed line is
  * the idle floor; times on battery are shaded amber. Under the time axis, the
  * mains ribbon: the supply's quality minute by minute, with the volts on hover.
@@ -80,7 +80,7 @@ export function PowerHistoryPanel() {
   return (
     <div className="h-full min-h-0 flex flex-col">
       <div className="shrink-0 flex items-center gap-x-3 gap-y-0.5 mb-1 flex-wrap text-[10px] 2xl:text-xs font-mono tabular-nums">
-        {[...keys, { key: 'rest', label: 'Rest of system', color: REST_COLOR }].map((c) => (
+        {[{ key: 'rest', label: 'Rest of system', color: REST_COLOR }, ...keys].map((c) => (
           <span key={c.key} className="flex items-center gap-1.5 text-zinc-500">
             <span className="inline-block w-2.5 h-[2px] rounded-full" style={{ backgroundColor: c.color }} />
             {c.label}
@@ -148,6 +148,18 @@ export function PowerHistoryPanel() {
           {runs.map(([x1, x2]) => (
             <ReferenceArea key={x1} yAxisId="w" x1={x1} x2={x2} fill={NVIDIA_THEME.warning} fillOpacity={0.18} ifOverflow="hidden" />
           ))}
+          <Area
+            yAxisId="w"
+            dataKey="rest"
+            stackId="w"
+            type="monotone"
+            stroke={REST_COLOR}
+            fill={REST_COLOR}
+            fillOpacity={0.22}
+            strokeWidth={1}
+            isAnimationActive={false}
+            connectNulls={false}
+          />
           {keys.map((k) => (
             <Area
               key={k.key}
@@ -163,18 +175,6 @@ export function PowerHistoryPanel() {
               connectNulls={false}
             />
           ))}
-          <Area
-            yAxisId="w"
-            dataKey="rest"
-            stackId="w"
-            type="monotone"
-            stroke={REST_COLOR}
-            fill={REST_COLOR}
-            fillOpacity={0.22}
-            strokeWidth={1}
-            isAnimationActive={false}
-            connectNulls={false}
-          />
           {data.floor_watts != null && (
             <ReferenceLine yAxisId="w" y={data.floor_watts} stroke="#a1a1aa" strokeDasharray="4 4" strokeOpacity={0.7} />
           )}

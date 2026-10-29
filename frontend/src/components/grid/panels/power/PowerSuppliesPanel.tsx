@@ -12,111 +12,101 @@ function reading(s: PowerSupply): { watts: number; side: string } | null {
   return null
 }
 
+/** A connector this close to its own over-current limit is worth a mention; below it, nobody needs the per-connector list. */
+const CONNECTOR_WARN = LOAD_THRESHOLDS.warning / 100
+
 /**
- * Each power supply: its draw against its rating, temperature, fan, any
- * condition it flags, and its rails where it reports them (with the 24 h
- * voltage range: a sagging 12 V under load shows there first). No efficiency figure: a supply that meters only one
- * rail on its output side would show a "loss" that is really the other rails.
+ * Everything a supply flags, for the ⚠ beside its name: its own condition, and
+ * any 12 V connector running near its over-current limit (multi-rail mode).
+ * None means no icon.
+ */
+function conditions(s: PowerSupply): string[] {
+  const out = s.warning ? [s.warning] : []
+  for (const c of s.connectors ?? []) {
+    if (c.amps !== null && c.ocp_amps && c.amps >= c.ocp_amps * CONNECTOR_WARN) {
+      out.push(`${c.name} at ${c.amps.toFixed(1)} A of its ${c.ocp_amps.toFixed(1)} A limit`)
+    }
+  }
+  return out
+}
+
+function Supply({ s }: { s: PowerSupply }) {
+  const r = reading(s)
+  const flags = conditions(s)
+  const share = r && s.capacity_watts ? (r.watts / s.capacity_watts) * 100 : null
+  // Both sides known: say so, with the efficiency they imply. Input as current only: amps at volts (apparent VA).
+  const both = s.input_watts !== null && s.output_watts !== null && s.input_watts > 0
+  const va = !s.input_watts && s.input_amps != null && s.input_volts !== null ? s.input_amps * s.input_volts : null
+  const facts = [
+    both ? `out ${Math.round(s.output_watts!)} W · ${Math.round((s.output_watts! / s.input_watts!) * 100)} % efficient` : null,
+    va !== null ? `in ${s.input_amps!.toFixed(1)} A at ${Math.round(s.input_volts!)} V (≈${Math.round(va)} VA)` : null,
+    s.temperature_c !== null ? `${s.temperature_c.toFixed(1)} °C` : null,
+    s.fan_rpm !== null ? (s.fan_rpm > 0 ? `fan ${Math.round(s.fan_rpm)} rpm` : 'fan off') : null,
+    s.input_volts !== null && va === null ? `${Math.round(s.input_volts)} V in` : null,
+    s.capacity_watts ? `${s.capacity_watts.toLocaleString('en-GB')} W rated` : null,
+  ].filter(Boolean)
+
+  return (
+    <div className="flex flex-col gap-1 min-w-0">
+      <div className="flex items-baseline gap-1.5 min-w-0">
+        <span className="text-[10px] 2xl:text-xs text-zinc-400 uppercase tracking-wider truncate min-w-0">
+          {s.name}{r ? ` · ${r.side}` : ''}
+        </span>
+        {flags.length > 0 && (
+          <span role="img" aria-label={flags.join('; ')} title={flags.join('\n')} className="text-amber-400 text-[11px] leading-none cursor-help">⚠</span>
+        )}
+        {r && (
+          <span className="ml-auto shrink-0 font-mono font-bold tabular-nums text-sm 2xl:text-lg text-zinc-100 leading-none">
+            {Math.round(r.watts)}
+            <span className="ml-0.5 text-[10px] text-zinc-500">W</span>
+          </span>
+        )}
+      </div>
+      {share !== null && (
+        <div className="flex h-1.5 lg:h-2 w-full rounded-full overflow-hidden bg-zinc-700/40">
+          <div className="h-full transition-all duration-500"
+            style={{ width: `${Math.min(100, share)}%`, backgroundColor: thresholdColor(share, LOAD_THRESHOLDS.warning, LOAD_THRESHOLDS.critical) }} />
+        </div>
+      )}
+      {facts.length > 0 && <FactLine>{facts.join(' · ')}</FactLine>}
+      {s.rails && s.rails.length > 0 && (
+        // One line per rail: voltage, current and the 24 h range (a sagging 12 V under load shows there first).
+        <div className="grid gap-x-2 gap-y-0.5 text-[10px] 2xl:text-xs font-mono tabular-nums min-w-0" style={{ gridTemplateColumns: 'auto auto auto 1fr' }}>
+          {s.rails.map((rl) => {
+            const bad = railOutOfSpec(rl.volts, rl.nominal_volts) || railOutOfSpec(rl.volts_min_24h ?? null, rl.nominal_volts)
+            return (
+              <div key={rl.name} className="contents" title="Now, current, and the lowest-highest reading in the last 24 h; ATX allows ±5 %">
+                <span className="text-zinc-400">{rl.name}</span>
+                <span style={{ color: bad ? NVIDIA_THEME.critical : '#e4e4e7' }}>{rl.volts !== null ? `${rl.volts.toFixed(2)} V` : '—'}</span>
+                <span className="text-zinc-500 text-right">{rl.amps !== null ? `${rl.amps.toFixed(1)} A` : ''}</span>
+                <span className="text-zinc-500 truncate">
+                  {rl.volts_min_24h != null && rl.volts_max_24h != null ? `24 h ${rl.volts_min_24h.toFixed(2)}–${rl.volts_max_24h.toFixed(2)}` : ''}
+                </span>
+              </div>
+            )
+          })}
+        </div>
+      )}
+    </div>
+  )
+}
+
+/**
+ * The power supplies side by side: each one's draw against its rating, the
+ * side it meters, temperature, fan, its rails with their 24 h range, and a ⚠
+ * carrying anything it flags (its own condition, or a 12 V connector near its
+ * limit) in full on hover. No efficiency figure unless a supply meters both
+ * sides.
  */
 export function PowerSuppliesPanel() {
   const now = usePowerDocument<PowerNow>('now', POWER_POLL_MS.now)
   if (!now.data) return <PowerNotice state={now} />
   const supplies = now.data.supplies
   if (supplies.length === 0) return <PanelNotice>No power supplies reported</PanelNotice>
-
   return (
-    // Top-aligned: a supply with rails and connectors can outgrow the box, and centring would cut its title off.
-    <div className="h-full flex flex-col justify-start gap-1.5 min-w-0 overflow-hidden">
-      {supplies.map((s) => {
-        const r = reading(s)
-        // Both sides known: say so, with the efficiency they imply. One side only: the bar says which.
-        const both = s.input_watts !== null && s.output_watts !== null && s.input_watts > 0
-        const va = !s.input_watts && s.input_amps != null && s.input_volts !== null ? s.input_amps * s.input_volts : null
-        const facts = [
-          both ? `out ${Math.round(s.output_watts!)} W · ${Math.round((s.output_watts! / s.input_watts!) * 100)} % efficient` : null,
-          va !== null ? `in ${s.input_amps!.toFixed(1)} A at ${Math.round(s.input_volts!)} V (≈${Math.round(va)} VA)` : null,
-          s.temperature_c !== null ? `${s.temperature_c.toFixed(1)} °C` : null,
-          s.fan_rpm !== null ? (s.fan_rpm > 0 ? `fan ${Math.round(s.fan_rpm)} rpm` : 'fan off') : null,
-          s.input_volts !== null && va === null ? `${Math.round(s.input_volts)} V in` : null,
-          s.capacity_watts ? `${s.capacity_watts.toLocaleString('en-GB')} W rated` : null,
-        ].filter(Boolean)
-        return (
-          <div key={s.name} className="flex flex-col gap-0.5 min-w-0">
-            {/* The supply's name, the side it meters, a ⚠ carrying any condition it flags (in full on hover), its
-                watts, and the bar against its rating. */}
-            <div className="flex flex-col gap-0.5 lg:gap-1 w-full min-w-0">
-              <div className="flex items-baseline gap-1.5 min-w-0">
-                <span className="text-[9px] lg:text-[10px] text-zinc-400 uppercase tracking-wider truncate min-w-0">
-                  {s.name}{r ? ` · ${r.side}` : ''}
-                </span>
-                {s.warning && (
-                  <span role="img" aria-label={s.warning} title={s.warning} className="text-amber-400 text-[11px] leading-none cursor-help">⚠</span>
-                )}
-                {r && (
-                  <span className="ml-auto shrink-0 font-mono font-bold tabular-nums text-xs lg:text-sm 2xl:text-base text-zinc-100 leading-none">
-                    {Math.round(r.watts)}
-                    <span className="ml-0.5 text-[9px] lg:text-[10px] text-zinc-500">W</span>
-                  </span>
-                )}
-              </div>
-              {r && s.capacity_watts ? (
-                <div className="flex h-1.5 lg:h-2 w-full rounded-full overflow-hidden bg-zinc-700/40">
-                  <div
-                    className="h-full transition-all duration-500"
-                    style={{
-                      width: `${Math.min(100, (r.watts / s.capacity_watts) * 100)}%`,
-                      backgroundColor: thresholdColor((r.watts / s.capacity_watts) * 100, LOAD_THRESHOLDS.warning, LOAD_THRESHOLDS.critical),
-                    }}
-                  />
-                </div>
-              ) : null}
-            </div>
-            {facts.length > 0 && <FactLine>{facts.join(' · ')}</FactLine>}
-            {s.rails && s.rails.length > 0 && (
-              // One wrapping line: each rail with its 24 h range, so a supply costs one line per rail set, not three.
-              <div className="flex flex-wrap gap-x-4 gap-y-0.5 text-[10px] 2xl:text-xs font-mono tabular-nums min-w-0">
-                {s.rails.map((r) => {
-                  const bad = railOutOfSpec(r.volts, r.nominal_volts) || railOutOfSpec(r.volts_min_24h ?? null, r.nominal_volts)
-                  return (
-                    <span key={r.name} className="whitespace-nowrap" title="Now, current, and the lowest-highest reading in the last 24 h; ATX allows ±5 %">
-                      <span className="text-zinc-400">{r.name} </span>
-                      <span style={{ color: bad ? NVIDIA_THEME.critical : '#e4e4e7' }}>
-                        {r.volts !== null ? `${r.volts.toFixed(2)} V` : '—'}
-                      </span>
-                      {r.amps !== null && <span className="text-zinc-500"> {r.amps.toFixed(1)} A</span>}
-                      {r.volts_min_24h != null && r.volts_max_24h != null && (
-                        <span className="text-zinc-500"> (24 h {r.volts_min_24h.toFixed(2)}–{r.volts_max_24h.toFixed(2)})</span>
-                      )}
-                    </span>
-                  )
-                })}
-              </div>
-            )}
-            {s.connectors && s.connectors.length > 0 && (
-              <div className="flex flex-col gap-0.5 min-w-0" title="Each 12 V connector's current (A) against its own over-current limit (multi-rail mode)">
-                <div className="grid grid-cols-6 gap-x-2 gap-y-0.5 min-w-0" aria-label="12 V connectors">
-                  {s.connectors.map((c) => {
-                    const share = c.amps !== null && c.ocp_amps ? (c.amps / c.ocp_amps) * 100 : null
-                    return (
-                      <div key={c.name} className="flex flex-col gap-0.5 min-w-0" title={`${c.name}: ${c.amps ?? '—'} A${c.ocp_amps ? ` of ${c.ocp_amps.toFixed(1)} A` : ', no OCP limit'}${c.watts !== null ? `, ${Math.round(c.watts)} W` : ''}`}>
-                        <span className="flex justify-between text-[9px] 2xl:text-[10px] font-mono tabular-nums">
-                          <span className="text-zinc-500">{c.name.replace(/^12V /, '')}</span>
-                          <span className="text-zinc-300">{c.amps !== null ? c.amps.toFixed(1) : '—'}</span>
-                        </span>
-                        <div className="h-1 w-full rounded-full overflow-hidden bg-zinc-700/40">
-                          {share !== null && (
-                            <div className="h-full" style={{ width: `${Math.min(share, 100)}%`, backgroundColor: thresholdColor(share, LOAD_THRESHOLDS.warning, LOAD_THRESHOLDS.critical) }} />
-                          )}
-                        </div>
-                      </div>
-                    )
-                  })}
-                </div>
-              </div>
-            )}
-          </div>
-        )
-      })}
+    <div className="h-full grid gap-x-6 gap-y-3 min-w-0 overflow-hidden content-start"
+      style={{ gridTemplateColumns: `repeat(${Math.min(supplies.length, 2)}, minmax(0, 1fr))` }}>
+      {supplies.map((s) => <Supply key={s.name} s={s} />)}
     </div>
   )
 }

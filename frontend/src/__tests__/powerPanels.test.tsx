@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { render, screen } from '@testing-library/react'
+import { fireEvent, render, screen, within } from '@testing-library/react'
 import type { ReactNode } from 'react'
 import { MetricsStoreContext } from '../hooks/useMetricsStore'
 import { resetPowerPollers } from '../hooks/usePowerDocument'
@@ -231,9 +231,8 @@ describe('Power panels', () => {
     expect(screen.getByText('12V')).toBeInTheDocument()
     expect(screen.getByText(/out 600 W · 93 % efficient/)).toBeInTheDocument()
     expect(screen.queryByText(/VA\)/)).toBeNull()
-    expect(screen.getByText('#6')).toBeInTheDocument()
-    expect(screen.getByText('5.4')).toBeInTheDocument()
-    expect(screen.getByText(/\(24 h 12\.01–12\.14\)/)).toBeInTheDocument()
+    expect(screen.getByText('24 h 12.01–12.14')).toBeInTheDocument()
+    expect(screen.queryByText('#6')).toBeNull() // the connector list is not shown
   })
 
   it('split today into the idle floor and the work above it', async () => {
@@ -311,8 +310,6 @@ describe('the Energy & Cost ledger', () => {
     expect(screen.getByText(/being on £54\.00 \+ work/)).toBeInTheDocument()
     expect(screen.getByText(/2\.7 kWh vs yesterday by now/)).toBeInTheDocument()
     expect(screen.getByText('£50.12/mo')).toBeInTheDocument()
-    expect(await screen.findByText('cost by hour · last 24 h')).toBeInTheDocument()
-    expect(screen.getByText(/avg .*\/h · peak .*\/h/)).toBeInTheDocument()
   })
 })
 
@@ -370,9 +367,30 @@ describe('the 7-day heatmap', () => {
     })
     withStore(<PowerDailyPanel />)
     expect(await screen.findByLabelText('Wed 28 by hour')).toBeInTheDocument()
-    expect(screen.getByTitle('Wed 28 02:00–03:00 · 900 W average')).toBeInTheDocument()
-    expect(screen.getByTitle('Thu 29 20:00–21:00 · no reading')).toBeInTheDocument()
+    expect(screen.getByLabelText('Wed 28 02:00–03:00 · 900 W average')).toBeInTheDocument()
+    expect(screen.getByLabelText('Thu 29 20:00–21:00 · no reading')).toBeInTheDocument()
+    // newest day first
+    expect(screen.getAllByText(/^(Wed 28|Thu 29)$/).map((e) => e.textContent)).toEqual(['Thu 29', 'Wed 28'])
+    // an hour's tooltip: its draw and what it cost, split at the idle floor (296 W, 26.32p/kWh in the fixture)
+    fireEvent.mouseEnter(screen.getByLabelText('Wed 28 02:00–03:00 · 900 W average'))
+    const tip = within(screen.getByText('Wed 28 · 02:00–03:00').parentElement!)
+    expect(tip.getByText('900 W')).toBeInTheDocument()
+    expect(tip.getByText('8p')).toBeInTheDocument() // being on: 296 W for an hour
+    expect(tip.getByText('16p')).toBeInTheDocument() // work: 604 W for an hour
     expect(screen.getByText('£2.34')).toBeInTheDocument()
     expect(screen.getByText(/16\.2 kWh/)).toBeInTheDocument()
+  })
+})
+
+describe('a 12 V connector near its limit', () => {
+  it('raises the supply\'s ⚠ with the connector named', async () => {
+    respond(200, {
+      ...NOW,
+      supplies: [{ name: 'AX1600i', input_watts: null, output_watts: 900, capacity_watts: 1600, temperature_c: 50,
+        fan_rpm: 400, input_volts: 236, warning: null,
+        connectors: [{ name: '12V #6', volts: 11.9, amps: 35, watts: 416, ocp_amps: 40.5 }, { name: '12V #1', volts: 12, amps: 3, watts: 36, ocp_amps: 40.5 }] }],
+    })
+    withStore(<PowerSuppliesPanel />)
+    expect(await screen.findByRole('img', { name: '12V #6 at 35.0 A of its 40.5 A limit' })).toBeInTheDocument()
   })
 })

@@ -93,7 +93,7 @@ export function MainsRibbon({
             title={`${formatClock(s.from)}–${formatClock(Math.min(s.to, t1))} · ${BAND_LABEL[s.band as Exclude<Band, 'none'>]} · mains in ${range(s.lo, s.hi, 1)} V${s.out !== null ? ` · UPS out ${s.out.toFixed(1)} V` : ''}`} />
         ))}
       </div>
-      <div className="flex items-center gap-3 text-[10px] 2xl:text-xs font-mono tabular-nums text-zinc-500 min-w-0" style={{ marginLeft: inset.left }}>
+      <div className="flex items-center gap-3 text-[10px] 2xl:text-xs font-mono tabular-nums text-zinc-500 min-w-0 whitespace-nowrap overflow-hidden" style={{ marginLeft: inset.left }}>
         <span className="text-zinc-400">mains</span>
         <span>
           {nowVolts !== null && <span className="text-zinc-300">{nowVolts.toFixed(1)} V</span>} 24 h {range(history.input_volts_min, history.input_volts_max, 1)} V
@@ -101,14 +101,6 @@ export function MainsRibbon({
           {nowHz !== null && <span className="text-zinc-300">{nowHz.toFixed(1)} Hz</span>} 24 h {range(history.input_hz_min, history.input_hz_max, 2)} Hz
         </span>
         <span className={fine ? 'text-[#76B900]' : 'text-amber-400'}>{fine ? 'within limits all day' : 'see the marks'}</span>
-        <span className="ml-auto flex items-center gap-2 truncate">
-          {(['ok', 'near', 'out', 'battery'] as const).map((b) => (
-            <span key={b} className="flex items-center gap-1 whitespace-nowrap">
-              <span className="inline-block h-1.5 w-2.5 rounded-sm" style={{ backgroundColor: BAND_COLOR[b], opacity: b === 'ok' ? 0.45 : 0.9 }} />
-              {BAND_LABEL[b]}
-            </span>
-          ))}
-        </span>
       </div>
     </div>
   )

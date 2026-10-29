@@ -1,4 +1,4 @@
-import { useMemo } from 'react'
+import { useMemo, useRef, useState } from 'react'
 import { POWER_POLL_MS, usePowerDocument } from '@/hooks/usePowerDocument'
 import { formatDay, formatKwh, formatMoney, formatWattsValue } from '@/lib/power'
 import { NVIDIA_THEME } from '@/lib/theme'
@@ -34,12 +34,17 @@ function heat(watts: number, floor: number, peak: number): string {
  * hour), then the day's energy as a bar split at the idle floor into being on
  * and work, and what it cost. The 24 h chart says how the last day went; this
  * says which hours of which days the machine works, and what each day cost.
+ * Newest day on top. Hovering an hour gives its average draw and what it cost,
+ * split at the idle floor into being on and work.
  */
 export function PowerDailyPanel() {
   const daily = usePowerDocument<PowerDaily>('daily?days=7', POWER_POLL_MS.daily)
   const now = usePowerDocument<PowerNow>('now', POWER_POLL_MS.now)
+  const gridRef = useRef<HTMLDivElement>(null)
+  const [hover, setHover] = useState<{ day: PowerDay; hour: number; x: number; y: number; below: boolean } | null>(null)
   const data = daily.data
   const floor = now.data?.energy?.floor_watts ?? null
+  const unit = now.data?.energy?.unit_price ?? null
   const scale = useMemo(() => {
     const all = (data?.days ?? []).flatMap((d) => (d.hourly_watts ?? []).filter((w): w is number => w !== null))
     const peak = all.length ? Math.max(...all) : 1
@@ -52,6 +57,7 @@ export function PowerDailyPanel() {
   if (days.every((d) => d.coverage === 0)) return <PanelNotice>No daily energy yet</PanelNotice>
 
   const c = data.currency
+  const rowsNewestFirst = [...days].reverse()
   const covered = days.filter((d) => d.coverage > 0)
   const total = days.reduce((s, d) => s + d.kwh, 0)
   const cost = days.reduce((s, d) => s + d.cost, 0)
@@ -82,8 +88,10 @@ export function PowerDailyPanel() {
         </span>
       </div>
 
-      <div className="flex-1 min-h-0 grid gap-x-2 gap-y-1" style={{ gridTemplateColumns: 'auto 1fr minmax(4rem, 18%) auto', gridTemplateRows: `repeat(${days.length}, minmax(0, 1fr)) auto` }}>
-        {days.map((d) => {
+      <div ref={gridRef} className="relative flex-1 min-h-0 grid gap-x-2 gap-y-1"
+        style={{ gridTemplateColumns: 'auto 1fr minmax(4rem, 18%) auto', gridTemplateRows: `repeat(${days.length}, minmax(0, 1fr)) auto` }}
+        onMouseLeave={() => setHover(null)}>
+        {rowsNewestFirst.map((d) => {
           const none = d.coverage === 0
           const partial = !none && d.coverage < FULL_DAY && d.date !== today
           const hours = d.hourly_watts ?? Array.from({ length: 24 }, () => null)
@@ -95,12 +103,26 @@ export function PowerDailyPanel() {
                 {formatDay(d.date)}
               </span>
               <div className="flex gap-px min-w-0 h-full" aria-label={`${formatDay(d.date)} by hour`}>
-                {hours.map((w, h) => (
-                  <div key={h}
-                    className="flex-1 min-w-0 rounded-[2px]"
-                    style={w === null ? { border: '1px dashed #27272a' } : { backgroundColor: heat(w, scale.base, scale.peak) }}
-                    title={`${formatDay(d.date)} ${String(h).padStart(2, '0')}:00–${String((h + 1) % 24).padStart(2, '0')}:00 · ${w === null ? 'no reading' : `${formatWattsValue(w)} W average`}`} />
-                ))}
+                {hours.map((w, h) => {
+                  const on = hover?.day.date === d.date && hover.hour === h
+                  return (
+                    <div key={h}
+                      className="flex-1 min-w-0 rounded-[2px] transition-[outline-color] duration-100"
+                      style={{
+                        ...(w === null ? { border: '1px dashed #27272a' } : { backgroundColor: heat(w, scale.base, scale.peak) }),
+                        outline: on ? '1px solid #e4e4e7' : '1px solid transparent',
+                        outlineOffset: 0,
+                      }}
+                      aria-label={`${formatDay(d.date)} ${String(h).padStart(2, '0')}:00–${String((h + 1) % 24).padStart(2, '0')}:00 · ${w === null ? 'no reading' : `${formatWattsValue(w)} W average`}`}
+                      onMouseEnter={(e) => {
+                        const grid = gridRef.current?.getBoundingClientRect()
+                        const cell = e.currentTarget.getBoundingClientRect()
+                        if (!grid) return
+                        const y = cell.top - grid.top
+                        setHover({ day: d, hour: h, x: cell.left - grid.left + cell.width / 2, y: y < 90 ? cell.bottom - grid.top : y, below: y < 90 })
+                      }} />
+                  )
+                })}
               </div>
               <div className="self-center flex items-center gap-1.5 min-w-0" title={dayTip(d)}>
                 <div className="flex h-1.5 rounded-full overflow-hidden bg-zinc-800" style={{ width: `${none ? 0 : Math.max(6, (d.kwh / scale.maxKwh) * 100)}%` }}>
@@ -130,7 +152,48 @@ export function PowerDailyPanel() {
         </div>
         <span className="text-[9px] font-mono text-zinc-600 self-start">kWh · being on / work</span>
         <span className="text-[9px] font-mono text-zinc-600 self-start text-right">{partial(days, today) ? '* part day' : ''}</span>
+        {hover && <HourTip hover={hover} floor={floor} unit={unit} currency={c} />}
       </div>
+    </div>
+  )
+}
+
+/**
+ * An hour's figures, styled like the charts' tooltips: when, its mean draw,
+ * and what it cost split at the idle floor (being on and work), at the
+ * current unit price.
+ */
+function HourTip({ hover, floor, unit, currency }: {
+  hover: { day: PowerDay; hour: number; x: number; y: number; below: boolean }
+  floor: number | null
+  unit: number | null
+  currency: string
+}) {
+  const w = hover.day.hourly_watts?.[hover.hour] ?? null
+  const hh = (h: number) => `${String(h % 24).padStart(2, '0')}:00`
+  const idle = w !== null && unit !== null ? (Math.min(w, floor ?? w) / 1000) * unit : null
+  const work = w !== null && unit !== null ? (Math.max(0, w - (floor ?? w)) / 1000) * unit : null
+  const row = (color: string, label: string, value: string) => (
+    <div className="flex w-full items-center gap-2">
+      <span className="h-2.5 w-2.5 shrink-0 rounded-[2px]" style={{ backgroundColor: color }} />
+      <span className="text-muted-foreground">{label}</span>
+      <span className="ml-auto pl-3 font-mono font-medium text-foreground tabular-nums">{value}</span>
+    </div>
+  )
+  return (
+    <div className="pointer-events-none absolute z-20 grid min-w-40 items-start gap-1.5 rounded-lg border border-border/50 bg-background px-2.5 py-1.5 text-xs shadow-xl"
+      style={{ left: hover.x, top: hover.y, transform: `translate(-50%, ${hover.below ? '6px' : 'calc(-100% - 6px)'})` }}>
+      <div className="font-medium text-foreground">{formatDay(hover.day.date)} · {hh(hover.hour)}–{hh(hover.hour + 1)}</div>
+      {w === null ? (
+        <div className="text-muted-foreground">no reading</div>
+      ) : (
+        <div className="grid gap-1.5">
+          {row('#a1a1aa', 'Average draw', `${formatWattsValue(w)} W`)}
+          {idle !== null && row(IDLE_COLOR, 'Being on', formatMoney(idle, currency))}
+          {work !== null && row(NVIDIA_THEME.accent, 'Work', formatMoney(work, currency))}
+          {idle !== null && work !== null && row('transparent', 'Total', formatMoney(idle + work, currency))}
+        </div>
+      )}
     </div>
   )
 }
