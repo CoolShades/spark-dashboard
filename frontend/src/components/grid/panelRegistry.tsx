@@ -37,6 +37,10 @@ import { GpuPciePanel } from './panels/GpuPciePanel'
 import { GpuPowerPanel } from './panels/GpuPowerPanel'
 import { GpuTemperaturePanel } from './panels/GpuTemperaturePanel'
 import { GpuUtilizationPanel } from './panels/GpuUtilizationPanel'
+import { GpuCardPanel } from './panels/gpus/GpuCardPanel'
+import { GpuDayPanel } from './panels/gpus/GpuDayPanel'
+import { GpuHealthPanel } from './panels/gpus/GpuHealthPanel'
+import { GpuThermalsPanel } from './panels/gpus/GpuThermalsPanel'
 import { InferenceTimelinePanel } from './panels/InferenceTimelinePanel'
 import { LogsPanel } from './panels/LogsPanel'
 import { MemoryPanel } from './panels/MemoryPanel'
@@ -67,6 +71,10 @@ const PANEL_CONTENT: Partial<Record<PanelType, ComponentType<PanelContentProps>>
   'gpu-fan': GpuFanPanel,
   'gpu-pcie': GpuPciePanel,
   'gpu-events': GpuEventsPanel,
+  'gpu-card': GpuCardPanel,
+  'gpu-day': GpuDayPanel,
+  'gpu-thermals': GpuThermalsPanel,
+  'gpu-health': GpuHealthPanel,
   'cpu-utilization': CpuUtilizationPanel,
   'cpu-cores': CpuCoresPanel,
   memory: MemoryPanel,

@@ -77,6 +77,13 @@ export const PANEL_TYPES = {
   // below: the history store keeps a bounded ring of events and filters it by
   // the window, so choosing 15m over 5m genuinely shows the operator more.
   'gpu-events': { binds: 'gpu', title: 'GPU Events' },
+  // One GPU at a glance: the live figures from the snapshot, with the P-state, held clocks and PCIe link from the
+  // power source's /gpus document (docs/power.md) when there is one. Windowed for its strip.
+  'gpu-card': { binds: 'gpu', title: 'GPU', size: { w: 3, h: 3 } },
+  // Every GPU over the last day and its health, from the power source (--power-url): history NVML cannot hold.
+  'gpu-day': { binds: 'none', title: 'GPUs · 24 h', size: { w: 12, h: 2 }, windowed: false },
+  'gpu-thermals': { binds: 'none', title: 'GPU Thermals · 24 h', size: { w: 6, h: 3 }, windowed: false },
+  'gpu-health': { binds: 'none', title: 'GPU Health', size: { w: 6, h: 3 }, windowed: false },
 
   // ── Host-wide hardware ──────────────────────────────────────────────────
   'cpu-utilization': { binds: 'none', title: 'CPU' },
