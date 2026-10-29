@@ -495,3 +495,18 @@ describe('the UPS card\'s second row', () => {
     expect(screen.queryByRole('group', { name: 'Shuts down at' })).toBeNull()
   })
 })
+
+describe('the wall card\'s GPU row', () => {
+  it('shows each card\'s draw with its slot, against its power limit', async () => {
+    const h = history([[Date.UTC(2026, 9, 29, 10), 300], [Date.UTC(2026, 9, 29, 11), 900]])
+    h.gpu_labels = ['GPU 0 · slot 2', 'GPU 1 · slot 7']
+    respondBy({ now: NOW, history: h })
+    const store = new MetricsHistoryStore()
+    store.ingest(snapshot([175, 21]))
+    withStore(<PowerWallPanel />, store)
+    expect(await screen.findByText('slot 7')).toBeInTheDocument()
+    expect(screen.getByRole('group', { name: 'GPU 0' })).toHaveTextContent('GPU 0175Wslot 2')
+    expect(screen.getByLabelText('GPU 0, 50 % of its power limit')).toBeInTheDocument() // 175 of 350 W
+    expect(screen.getByLabelText('GPU 1, 6 % of its power limit')).toBeInTheDocument()
+  })
+})

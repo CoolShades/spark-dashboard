@@ -2,10 +2,11 @@ import { useLatestSnapshot } from '@/hooks/useMetricsStore'
 import { POWER_POLL_MS, usePowerDocument } from '@/hooks/usePowerDocument'
 import { formatWattsValue, splitWall, sumGpuWatts } from '@/lib/power'
 import { NVIDIA_THEME } from '@/lib/theme'
-import type { PowerNow } from '@/types/power'
+import type { GpuMetrics } from '@/types/metrics'
+import type { PowerHistory, PowerNow } from '@/types/power'
 import { usePanelDevice } from '../../panelDevice'
 import { PanelNotice } from '../PanelNotice'
-import { FactLine, Headline, PowerNotice, StaleBadge, StripFooter } from './PowerParts'
+import { FactLine, Headline, PowerNotice, PowerStat, StaleBadge, StripFooter } from './PowerParts'
 
 const SYSTEM_COLOR = '#71717a'
 const OTHER_COLORS = ['#38bdf8', '#a78bfa', '#f472b6']
@@ -56,15 +57,45 @@ function LiveStrip({ recent }: { recent: ReadonlyArray<{ at: number; data: Power
 }
 
 /**
+ * The GPU slice, card by card: each one's board power (this dashboard's NVML
+ * reading, so it moves every second) against its power limit, with the slot
+ * the source names it by in the 24 h chart ("GPU 0 · slot 2") when it does.
+ */
+function GpuRow({ gpus, labels }: { gpus: ReadonlyArray<GpuMetrics>; labels: ReadonlyArray<string> }) {
+  if (gpus.length === 0) return null
+  return (
+    <div className="grid gap-2 min-w-0" style={{ gridTemplateColumns: `repeat(${Math.min(gpus.length, 4)}, minmax(0, 1fr))` }}>
+      {gpus.map((g) => {
+        const name = `GPU ${g.index}`
+        const where = labels.find((l) => l.startsWith(`${name} · `))?.slice(name.length + 3)
+        const share = g.power_watts !== null && g.power_limit_watts ? (g.power_watts / g.power_limit_watts) * 100 : null
+        return (
+          <div key={g.index} className="flex flex-col gap-1 min-w-0"
+            title={g.power_limit_watts ? `${name}: power limit ${formatWattsValue(g.power_limit_watts)} W` : name}>
+            <PowerStat label={name} value={g.power_watts !== null ? formatWattsValue(g.power_watts) : '—'} unit="W" sub={where} />
+            {share !== null && (
+              <div className="h-1 w-full rounded-full overflow-hidden bg-zinc-700/40" aria-label={`${name}, ${Math.round(share)} % of its power limit`}>
+                <div className="h-full transition-all duration-500" style={{ width: `${Math.min(100, share)}%`, backgroundColor: NVIDIA_THEME.accent }} />
+              </div>
+            )}
+          </div>
+        )
+      })}
+    </div>
+  )
+}
+
+/**
  * The whole rack at the wall, and where it goes: the GPUs (this dashboard's own
  * NVML reading, so that slice moves every second), the other loads on the same
  * meter (a router on the UPS, estimated by the source), and the system: CPU,
- * memory, disks, fans and the supplies' losses. Below it, a live strip of the
- * last few minutes, polled every 2 s.
+ * memory, disks, fans and the supplies' losses. Then the GPU slice card by
+ * card, and a live strip of the last few minutes, polled every 2 s.
  */
 export function PowerWallPanel() {
   const now = usePowerDocument<PowerNow>('now', POWER_POLL_MS.now)
   const snapshot = useLatestSnapshot()
+  const history = usePowerDocument<PowerHistory>('history?hours=24', POWER_POLL_MS.history)
   usePanelDevice(now.data?.total_source ?? null)
   if (!now.data) return <PowerNotice state={now} />
 
@@ -129,6 +160,9 @@ export function PowerWallPanel() {
         </div>
       )}
       {readings.length > 0 && <FactLine>{readings.join(' · ')}</FactLine>}
+      <div className="mt-1.5">
+        <GpuRow gpus={snapshot?.gpus ?? []} labels={history.data?.gpu_labels ?? []} />
+      </div>
       <LiveStrip recent={now.recent as ReadonlyArray<{ at: number; data: PowerNow }>} />
     </div>
   )
