@@ -1,5 +1,5 @@
 import { useMemo } from 'react'
-import { Area, AreaChart, CartesianGrid, XAxis, YAxis } from 'recharts'
+import { Area, AreaChart, ReferenceLine, XAxis, YAxis } from 'recharts'
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from '@/components/ui/chart'
 import { POWER_POLL_MS, usePowerDocument } from '@/hooks/usePowerDocument'
 import { formatClock, formatWattsValue, LOAD_THRESHOLDS, railOutOfSpec } from '@/lib/power'
@@ -123,21 +123,13 @@ function SupplyDay({ s, side, history }: { s: PowerSupply; side: string | null; 
   const label = side === 'in' ? 'Input' : 'Output'
 
   return (
-    <div className="min-h-0 flex flex-col pt-1.5" aria-label={`${s.name}, last 24 h`}>
-      <div className="shrink-0 flex items-baseline gap-2 text-[10px] 2xl:text-xs font-mono tabular-nums text-zinc-500 min-w-0">
-        <span className="shrink-0">{read.length < rows.length * FULL_WINDOW ? `since ${formatClock(read[0].t)}` : '24 h'}</span>
-        <span className="ml-auto truncate">
-          avg {formatWattsValue(avg)} W · peak <span className="text-zinc-300">{formatWattsValue(peak.w)} W</span>
-          {ofRating(peak.w)} at {formatClock(peak.t)}
-        </span>
-      </div>
-      <ChartContainer config={{ w: { label, color: NVIDIA_THEME.accent } }} className="w-full flex-1 min-h-0 aspect-auto">
-        <AreaChart data={rows} margin={{ top: 4, right: 2, bottom: 0, left: 0 }}>
-          <CartesianGrid stroke={NVIDIA_THEME.chartGrid} strokeDasharray="3 3" vertical={false} />
-          <XAxis dataKey="t" type="number" scale="time" domain={['dataMin', 'dataMax']} stroke={NVIDIA_THEME.chartAxis}
-            fontSize={10} tickLine={false} axisLine={false} tickFormatter={formatClock} minTickGap={50} height={16} />
-          <YAxis width={32} stroke={NVIDIA_THEME.chartAxis} fontSize={10} tickLine={false} axisLine={false} tickCount={3}
-            domain={[0, 'auto']} tickFormatter={(v: number) => formatWattsValue(v)} />
+    // A strip like the wall tile's, filling what the rails leave: no axes (the caption carries the window and the
+    // peak, the tooltip the time and reading), the area from 0 W so its height is the draw, the dashed line the average.
+    <div className="min-h-0 flex flex-col gap-0.5 pt-1.5" aria-label={`${s.name}, last 24 h`}>
+      <ChartContainer config={{ w: { label, color: NVIDIA_THEME.accent } }} className="w-full flex-1 min-h-6 aspect-auto">
+        <AreaChart data={rows} margin={{ top: 2, right: 0, bottom: 0, left: 0 }}>
+          <XAxis dataKey="t" type="number" scale="time" domain={['dataMin', 'dataMax']} hide />
+          <YAxis domain={[0, 'auto']} hide />
           <ChartTooltip
             content={
               <ChartTooltipContent
@@ -154,10 +146,19 @@ function SupplyDay({ s, side, history }: { s: PowerSupply; side: string | null; 
               />
             }
           />
+          <ReferenceLine y={avg} stroke="#a1a1aa" strokeDasharray="3 3" strokeOpacity={0.5} />
           <Area dataKey="w" type="monotone" stroke={NVIDIA_THEME.accent} fill={NVIDIA_THEME.accent} fillOpacity={0.22}
             strokeWidth={1.2} isAnimationActive={false} connectNulls={false} />
         </AreaChart>
       </ChartContainer>
+      {/* The peak first, whole; the average is the part that gives way in a narrow card. */}
+      <p className="shrink-0 flex gap-2 text-[10px] 2xl:text-xs text-zinc-500 font-mono tabular-nums min-w-0">
+        <span className="shrink-0">
+          {read.length < rows.length * FULL_WINDOW ? `since ${formatClock(read[0].t)}` : 'last 24 h'} · peak{' '}
+          <span className="text-zinc-300">{formatWattsValue(peak.w)} W</span>{ofRating(peak.w)} at {formatClock(peak.t)}
+        </span>
+        <span className="ml-auto truncate">avg {formatWattsValue(avg)} W</span>
+      </p>
     </div>
   )
 }

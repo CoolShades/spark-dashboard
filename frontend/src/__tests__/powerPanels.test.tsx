@@ -416,11 +416,11 @@ describe('each supply\'s last 24 h', () => {
     respondBy({ now: NOW, history: h })
     withStore(<PowerSuppliesPanel />)
     const ax = await screen.findByLabelText('AX1600i, last 24 h')
-    expect(ax.textContent).toContain('24 h')
-    expect(ax.textContent).toContain(`avg 733 W · peak 900 W (56 %) at ${formatClock(t[1])}`)
+    expect(ax.textContent).toContain(`last 24 h · peak 900 W (56 %) at ${formatClock(t[1])}`)
+    expect(ax.textContent).toContain('avg 733 W')
     const hx = screen.getByLabelText('HX850i, last 24 h')
-    expect(hx.textContent).toContain(`since ${formatClock(t[1])}`)
-    expect(hx.textContent).toContain(`peak 460 W (54 %) at ${formatClock(t[2])}`)
+    expect(hx.textContent).toContain(`since ${formatClock(t[1])} · peak 460 W (54 %) at ${formatClock(t[2])}`)
+    expect(hx.textContent).toContain('avg 430 W')
   })
 
   it('leaves the space empty for a source that sends no per-supply series', async () => {
