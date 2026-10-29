@@ -10,6 +10,12 @@ const IDLE_COLOR = '#71717a'
 /** A day with fewer readings than this is marked partial. */
 const FULL_DAY = 0.95
 const HOUR_TICKS = [0, 6, 12, 18]
+/** A bar shorter than this share of its column has no room for its kWh inside, so the figure sits just past its end. */
+const LABEL_INSIDE = 22
+
+type HourHover = { day: PowerDay; hour: number; x: number; y: number; below: boolean }
+/** A day's card: under the row near the top of the grid, above it lower down; on the side of the grid it was opened from. */
+type DayHover = { day: PowerDay; y: number; below: boolean; side: 'left' | 'right' }
 
 /** Mix two #rrggbb colours: t = 0 gives a, t = 1 gives b. */
 function mix(a: string, b: string, t: number): string {
@@ -35,13 +41,15 @@ function heat(watts: number, floor: number, peak: number): string {
  * and work (the key: "on/work"), its kWh, and what it cost. The 24 h chart says how the last day went; this
  * says which hours of which days the machine works, and what each day cost.
  * Newest day on top. Hovering an hour gives its average draw and what it cost,
- * split at the idle floor into being on and work.
+ * split at the idle floor into being on and work; hovering a day's name, bar or
+ * cost gives the day's card.
  */
 export function PowerDailyPanel() {
   const daily = usePowerDocument<PowerDaily>('daily?days=7', POWER_POLL_MS.daily)
   const now = usePowerDocument<PowerNow>('now', POWER_POLL_MS.now)
   const gridRef = useRef<HTMLDivElement>(null)
-  const [hover, setHover] = useState<{ day: PowerDay; hour: number; x: number; y: number; below: boolean } | null>(null)
+  const [hover, setHover] = useState<HourHover | null>(null)
+  const [dayHover, setDayHover] = useState<DayHover | null>(null)
   const data = daily.data
   const floor = now.data?.energy?.floor_watts ?? null
   const unit = now.data?.energy?.unit_price ?? null
@@ -65,15 +73,14 @@ export function PowerDailyPanel() {
   const avg = fullDays.length ? fullDays.reduce((s, d) => s + d.kwh, 0) / fullDays.length : null
   const today = days[days.length - 1]?.date
 
-  const dayTip = (d: PowerDay) =>
-    [
-      `${formatDay(d.date)}: ${formatKwh(d.kwh)} kWh, ${formatMoney(d.cost, c)}`,
-      d.idle_kwh != null && d.work_kwh != null ? `being on ${formatKwh(d.idle_kwh)} kWh, work ${formatKwh(d.work_kwh)} kWh` : null,
-      d.average_watts !== null ? `average ${formatWattsValue(d.average_watts)} W` : null,
-      d.peak_watts !== null ? `peak minute ${formatWattsValue(d.peak_watts)} W` : null,
-      d.gpu_kwh != null && d.kwh > 0 ? `GPUs ${Math.round((d.gpu_kwh / d.kwh) * 100)} % of the energy` : null,
-      d.coverage < FULL_DAY ? `readings for ${Math.round(d.coverage * 100)} % of the ${d.date === today ? 'day so far' : 'day'}` : null,
-    ].filter(Boolean).join('\n')
+  const openDay = (d: PowerDay, el: HTMLElement, side: DayHover['side']) => {
+    const grid = gridRef.current?.getBoundingClientRect()
+    if (!grid) return
+    const r = el.getBoundingClientRect()
+    const y = r.top - grid.top
+    setHover(null)
+    setDayHover({ day: d, y: y < 90 ? r.bottom - grid.top : y, below: y < 90, side })
+  }
 
   return (
     <div className="h-full min-h-0 flex flex-col gap-1.5">
@@ -89,17 +96,20 @@ export function PowerDailyPanel() {
       </div>
 
       <div ref={gridRef} className="relative flex-1 min-h-0 grid gap-x-2 gap-y-1"
-        style={{ gridTemplateColumns: 'auto 1fr minmax(3rem, 14%) auto auto', gridTemplateRows: `repeat(${days.length}, minmax(0, 1fr)) auto` }}
-        onMouseLeave={() => setHover(null)}>
+        style={{ gridTemplateColumns: 'auto 1fr minmax(4rem, 18%) auto', gridTemplateRows: `repeat(${days.length}, minmax(0, 1fr)) auto` }}
+        onMouseLeave={() => { setHover(null); setDayHover(null) }}>
         {rowsNewestFirst.map((d) => {
           const none = d.coverage === 0
           const partial = !none && d.coverage < FULL_DAY && d.date !== today
           const hours = d.hourly_watts ?? Array.from({ length: 24 }, () => null)
           const idle = d.idle_kwh ?? null
           const work = d.work_kwh ?? null
+          const share = none ? 0 : Math.max(6, (d.kwh / scale.maxKwh) * 100)
+          const inside = share >= LABEL_INSIDE
           return (
             <div key={d.date} className="contents">
-              <span className={`self-center text-[10px] 2xl:text-xs font-mono ${d.date === today ? 'text-zinc-100' : 'text-zinc-400'}`} title={dayTip(d)}>
+              <span className={`self-center text-[10px] 2xl:text-xs font-mono cursor-default ${d.date === today ? 'text-zinc-100' : 'text-zinc-400'}`}
+                onMouseEnter={(e) => openDay(d, e.currentTarget, 'left')}>
                 {formatDay(d.date)}
               </span>
               <div className="flex gap-px min-w-0 h-full" aria-label={`${formatDay(d.date)} by hour`}>
@@ -119,29 +129,37 @@ export function PowerDailyPanel() {
                         const cell = e.currentTarget.getBoundingClientRect()
                         if (!grid) return
                         const y = cell.top - grid.top
+                        setDayHover(null)
                         setHover({ day: d, hour: h, x: cell.left - grid.left + cell.width / 2, y: y < 90 ? cell.bottom - grid.top : y, below: y < 90 })
                       }} />
                   )
                 })}
               </div>
-              {/* The bar has its column to itself, so its length is the day's share of the week's biggest day; the
-                  figure sits in the next column, right-aligned, rather than squeezing the longest bar. */}
-              <div className="self-center flex min-w-0" title={dayTip(d)}>
-                <div className="flex h-1.5 rounded-full overflow-hidden bg-zinc-800" style={{ width: `${none ? 0 : Math.max(6, (d.kwh / scale.maxKwh) * 100)}%` }}>
-                  {idle !== null && work !== null && d.kwh > 0 ? (
-                    <>
-                      <div className="h-full" style={{ width: `${(idle / (idle + work || 1)) * 100}%`, backgroundColor: IDLE_COLOR }} />
-                      <div className="h-full" style={{ width: `${(work / (idle + work || 1)) * 100}%`, backgroundColor: NVIDIA_THEME.accent }} />
-                    </>
-                  ) : (
-                    <div className="h-full w-full" style={{ backgroundColor: IDLE_COLOR }} />
-                  )}
-                </div>
+              {/* The bar has its column to itself, so its length is the day's share of the week's biggest day, with the
+                  day's kWh written inside it, over the "on" end (or just past the end of a bar too short to hold it). */}
+              <div className="self-center relative h-4 min-w-0 cursor-default" aria-label={`${formatDay(d.date)} energy`}
+                onMouseEnter={(e) => openDay(d, e.currentTarget, 'right')}>
+                {!none && (
+                  <div className="absolute inset-y-0 left-0 flex rounded-[3px] overflow-hidden bg-zinc-800" style={{ width: `${share}%` }}>
+                    {idle !== null && work !== null && d.kwh > 0 ? (
+                      <>
+                        <div className="h-full" style={{ width: `${(idle / (idle + work || 1)) * 100}%`, backgroundColor: IDLE_COLOR }} />
+                        <div className="h-full" style={{ width: `${(work / (idle + work || 1)) * 100}%`, backgroundColor: NVIDIA_THEME.accent }} />
+                      </>
+                    ) : (
+                      <div className="h-full w-full" style={{ backgroundColor: IDLE_COLOR }} />
+                    )}
+                  </div>
+                )}
+                <span className="absolute inset-y-0 flex items-center text-[10px] 2xl:text-xs font-mono font-medium tabular-nums whitespace-nowrap leading-none"
+                  style={none ? { left: 0, color: '#71717a' }
+                    : inside ? { left: 0, paddingLeft: 5, color: '#fafafa', textShadow: '0 0 3px rgba(0, 0, 0, 0.75)' }
+                      : { left: `calc(${share}% + 4px)`, color: '#d4d4d8' }}>
+                  {none ? '—' : formatKwh(d.kwh)}
+                </span>
               </div>
-              <span className="self-center text-right text-[10px] 2xl:text-xs font-mono tabular-nums text-zinc-300 whitespace-nowrap" title={dayTip(d)}>
-                {none ? '—' : formatKwh(d.kwh)}
-              </span>
-              <span className="self-center text-right text-[10px] 2xl:text-xs font-mono tabular-nums text-zinc-200 whitespace-nowrap" title={dayTip(d)}>
+              <span className="self-center text-right text-[10px] 2xl:text-xs font-mono tabular-nums text-zinc-200 whitespace-nowrap cursor-default"
+                onMouseEnter={(e) => openDay(d, e.currentTarget, 'right')}>
                 {none ? '' : formatMoney(d.cost, c)}{partial ? '*' : ''}
               </span>
             </div>
@@ -155,11 +173,12 @@ export function PowerDailyPanel() {
           <span className="absolute right-0">24</span>
         </div>
         {/* The bars' key, one line under the bars, its two words in the bars' colours. */}
-        <div className="col-span-3 self-start flex gap-2 text-[9px] font-mono text-zinc-600 whitespace-nowrap">
+        <div className="col-span-2 self-start flex gap-2 text-[9px] font-mono text-zinc-600 whitespace-nowrap">
           <span>kWh · <span style={{ color: IDLE_COLOR }}>on</span>/<span style={{ color: NVIDIA_THEME.accent }}>work</span></span>
           <span className="ml-auto">{partial(days, today) ? '* part day' : ''}</span>
         </div>
         {hover && <HourTip hover={hover} floor={floor} unit={unit} currency={c} />}
+        {dayHover && <DayTip hover={dayHover} currency={c} today={today} />}
       </div>
     </div>
   )
@@ -171,7 +190,7 @@ export function PowerDailyPanel() {
  * current unit price.
  */
 function HourTip({ hover, floor, unit, currency }: {
-  hover: { day: PowerDay; hour: number; x: number; y: number; below: boolean }
+  hover: HourHover
   floor: number | null
   unit: number | null
   currency: string
@@ -200,6 +219,54 @@ function HourTip({ hover, floor, unit, currency }: {
           {work !== null && row(NVIDIA_THEME.accent, 'Work', formatMoney(work, currency))}
           {idle !== null && work !== null && row('transparent', 'Total', formatMoney(idle + work, currency))}
         </div>
+      )}
+    </div>
+  )
+}
+
+/**
+ * A day's figures, in the hour card's style: its energy and cost split at the
+ * idle floor into being on and work (the cost shared out by kWh, which is exact
+ * on a flat tariff), the total, then its average and peak, the GPUs' share and,
+ * for a day with gaps, how much of it was read.
+ */
+function DayTip({ hover, currency, today }: { hover: DayHover; currency: string; today: string | undefined }) {
+  const d = hover.day
+  const idle = d.idle_kwh ?? null
+  const work = d.work_kwh ?? null
+  const split = idle !== null && work !== null && idle + work > 0
+  const part = (kwh: number) => `${formatKwh(kwh)} kWh · ${formatMoney(split ? d.cost * (kwh / (idle! + work!)) : 0, currency)}`
+  const facts = [
+    d.average_watts !== null ? `average ${formatWattsValue(d.average_watts)} W` : null,
+    d.peak_watts !== null ? `peak minute ${formatWattsValue(d.peak_watts)} W` : null,
+    d.gpu_kwh != null && d.kwh > 0 ? `GPUs ${Math.round((d.gpu_kwh / d.kwh) * 100)} % of the energy` : null,
+    d.coverage > 0 && d.coverage < FULL_DAY ? `readings for ${Math.round(d.coverage * 100)} % of the ${d.date === today ? 'day so far' : 'day'}` : null,
+  ].filter(Boolean)
+  const row = (color: string, label: string, value: string, strong = false) => (
+    <div className="flex w-full items-center gap-2">
+      <span className="h-2.5 w-2.5 shrink-0 rounded-[2px]" style={{ backgroundColor: color }} />
+      <span className={strong ? 'font-medium text-foreground' : 'text-muted-foreground'}>{label}</span>
+      <span className="ml-auto pl-3 font-mono font-medium text-foreground tabular-nums">{value}</span>
+    </div>
+  )
+  return (
+    <div className="pointer-events-none absolute z-20 grid min-w-48 items-start gap-1.5 rounded-lg border border-border/50 bg-background px-2.5 py-1.5 text-xs shadow-xl"
+      style={{ ...(hover.side === 'right' ? { right: 0 } : { left: 0 }), top: hover.y,
+        transform: `translateY(${hover.below ? '6px' : 'calc(-100% - 6px)'})` }}>
+      <div className="font-medium text-foreground">{formatDay(d.date)}{d.date === today ? ' · so far' : ''}</div>
+      {d.coverage === 0 ? (
+        <div className="text-muted-foreground">no readings</div>
+      ) : (
+        <>
+          <div className="grid gap-1.5">
+            {split && row(IDLE_COLOR, 'Being on', part(idle!))}
+            {split && row(NVIDIA_THEME.accent, 'Work', part(work!))}
+            <div className={split ? 'border-t border-border/50 pt-1.5' : ''}>
+              {row('transparent', 'Total', `${formatKwh(d.kwh)} kWh · ${formatMoney(d.cost, currency)}`, true)}
+            </div>
+          </div>
+          {facts.length > 0 && <div className="grid gap-0.5 text-muted-foreground">{facts.map((f) => <span key={f}>{f}</span>)}</div>}
+        </>
       )}
     </div>
   )

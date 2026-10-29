@@ -447,3 +447,25 @@ describe('the 7-day heatmap key', () => {
     expect(screen.queryByText(/being on \//)).toBeNull()
   })
 })
+
+describe('a day in the 7-day heatmap', () => {
+  it('writes its kWh inside the bar and opens a day card on hover, with no browser tooltip', async () => {
+    respondBy({
+      now: NOW,
+      daily: {
+        currency: 'GBP',
+        days: [{ date: '2026-10-29', kwh: 8.8, idle_kwh: 5.5, work_kwh: 3.3, cost: 2.34, average_watts: 466, peak_watts: 1553, coverage: 1, gpu_kwh: 2.2, hourly_watts: Array.from({ length: 24 }, () => 300) }],
+      },
+    })
+    withStore(<PowerDailyPanel />)
+    const bar = await screen.findByLabelText('Thu 29 energy')
+    expect(within(bar).getByText('8.8')).toBeInTheDocument()
+    expect(bar).not.toHaveAttribute('title')
+    fireEvent.mouseEnter(bar)
+    const tip = within(screen.getByText('Thu 29 · so far').parentElement!)
+    expect(tip.getByText('5.5 kWh · £1.46')).toBeInTheDocument() // being on: the cost shared out by kWh
+    expect(tip.getByText('3.3 kWh · 88p')).toBeInTheDocument()
+    expect(tip.getByText('8.8 kWh · £2.34')).toBeInTheDocument()
+    expect(tip.getByText('GPUs 25 % of the energy')).toBeInTheDocument()
+  })
+})
