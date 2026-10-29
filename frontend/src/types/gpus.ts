@@ -63,9 +63,11 @@ export interface GpuStep {
   /** The step's peak. */
   temp: number | null
   fan: number | null
-  /** Share of the step (0-1) with the clocks held by the power cap, and slowed (thermal or hardware). */
+  /** Share of the step (0-1) with the clocks held: by the power cap, by a hardware slowdown (thermal, power brake),
+   *  and by the driver's software thermal cap. */
   power_cap: number | null
   slowdown: number | null
+  thermal?: number | null
 }
 
 export interface GpuHistory {

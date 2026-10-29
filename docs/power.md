@@ -236,12 +236,13 @@ every GPU in `labels` order, a summary per GPU, and the cards' own limits:
 { "hours": 24, "step_seconds": 600, "labels": ["GPU 0 · slot 2", "GPU 1 · slot 7"],
   "points": [ { "t": 1793238000000, "gpus": [
     { "util": 91, "watts": 235, "temp": 77, "fan": 50, "power_cap": 0.13, "slowdown": 0 },
-    { "util": 91, "watts": 215, "temp": 68, "fan": 36, "power_cap": 0.13, "slowdown": 0.01 } ] } ],
+    { "util": 91, "watts": 215, "temp": 68, "fan": 36, "power_cap": 0.13, "slowdown": 0, "thermal": 0.01 } ] } ],
   "summary": [ { "index": 0, "busy_hours": 1.7, "util_avg": 6, "kwh": 1.28, "temp_max": 79,
                  "temp_max_at": "2026-10-29T01:50:00+00:00" } ],
   "limits": { "target_c": 83, "max_operating_c": 93, "slowdown_c": 95 } }
 ```
 
 `util`, `watts` and `fan` are the step's means and `temp` its peak;
-`power_cap` and `slowdown` are the share of the step with the clocks held by
-each. `busy_hours` counts steps at 10 % load or more.
+`power_cap`, `slowdown` (hardware: thermal, power brake) and `thermal` (the
+driver's software thermal cap) are the share of the step with the clocks held
+by each. The heatmap marks a step amber for `thermal`, red for `slowdown`. `busy_hours` counts steps at 10 % load or more.

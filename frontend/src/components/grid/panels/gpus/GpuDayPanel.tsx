@@ -13,8 +13,8 @@ const SLOWED = 0.005
 /**
  * Each GPU's last 24 hours as a row of 10-minute cells coloured by its mean
  * load (quiet under 2 %, full accent at 100 %, square-rooted so a light job
- * still shows), with a red mark on any step its clocks were slowed by a
- * thermal or hardware limit, and at the end of the row its busy hours, kWh and
+ * still shows), with a mark on any step its clocks were held for heat (amber,
+ * the driver's thermal cap) or slowed by the hardware (red), and at the end of the row its busy hours, kWh and
  * the hottest it got. Hovering a cell gives that step's load, power, peak
  * temperature and fan, and how long the clocks were held. The cards above are
  * now; this is the day.
@@ -54,8 +54,10 @@ export function GpuDayPanel() {
           <span>idle</span>
           <span className="inline-block h-1.5 w-16 rounded-full" style={{ background: `linear-gradient(90deg, #2a2d24, #3b4d12, ${NVIDIA_THEME.accent})` }} />
           <span>100 %</span>
-          <span className="ml-2 inline-block h-1.5 w-2.5 rounded-sm" style={{ backgroundColor: NVIDIA_THEME.critical }} />
-          <span>slowed</span>
+          <span className="ml-2 inline-block h-1.5 w-2.5 rounded-sm" style={{ backgroundColor: NVIDIA_THEME.warning }} />
+          <span>capped for heat</span>
+          <span className="ml-1 inline-block h-1.5 w-2.5 rounded-sm" style={{ backgroundColor: NVIDIA_THEME.critical }} />
+          <span>HW slowdown</span>
         </span>
       </div>
 
@@ -85,8 +87,9 @@ export function GpuDayPanel() {
                         const r = e.currentTarget.getBoundingClientRect()
                         setHover({ gpu: gi, t, step: cell, at: { top: r.top, bottom: r.bottom, x: r.left + r.width / 2, align: 'center' } })
                       }}>
-                      {(cell?.slowdown ?? 0) > SLOWED && (
-                        <span className="absolute inset-x-0 top-0 h-[3px] rounded-t-[1px]" style={{ backgroundColor: NVIDIA_THEME.critical }} />
+                      {((cell?.slowdown ?? 0) > SLOWED || (cell?.thermal ?? 0) > SLOWED) && (
+                        <span className="absolute inset-x-0 top-0 h-[3px] rounded-t-[1px]"
+                          style={{ backgroundColor: (cell?.slowdown ?? 0) > SLOWED ? NVIDIA_THEME.critical : NVIDIA_THEME.warning }} />
                       )}
                     </div>
                   )
@@ -145,8 +148,11 @@ function CellTip({ hover, label, step }: { hover: CellHover; label: string; step
           {working && (s.power_cap ?? 0) > SLOWED && (
             <div className="text-muted-foreground">power-capped {Math.round((s.power_cap ?? 0) * 100)} % of the time</div>
           )}
+          {(s.thermal ?? 0) > SLOWED && (
+            <div style={{ color: NVIDIA_THEME.warning }}>capped for heat {Math.round((s.thermal ?? 0) * 100)} % of the time</div>
+          )}
           {(s.slowdown ?? 0) > SLOWED && (
-            <div style={{ color: NVIDIA_THEME.critical }}>slowed {Math.round((s.slowdown ?? 0) * 100)} % of the time</div>
+            <div style={{ color: NVIDIA_THEME.critical }}>HW slowdown {Math.round((s.slowdown ?? 0) * 100)} % of the time</div>
           )}
         </>
       )}

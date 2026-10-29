@@ -76,7 +76,7 @@ const HISTORY: GpuHistory = {
   points: [
     { t: T0, gpus: [
       { util: 91, watts: 235, temp: 77, fan: 50, power_cap: 0.13, slowdown: 0 },
-      { util: 91, watts: 215, temp: 68, fan: 36, power_cap: 0.13, slowdown: 0.2 },
+      { util: 91, watts: 215, temp: 68, fan: 36, power_cap: 0.13, slowdown: 0.2, thermal: 0.05 },
     ] },
     { t: T0 + 600_000, gpus: [
       { util: 0, watts: 23, temp: 40, fan: 0, power_cap: 0.68, slowdown: 0 },
@@ -165,7 +165,8 @@ describe('the GPUs’ 24 h heatmap', () => {
     expect(tip.getByText('91 %')).toBeInTheDocument()
     expect(tip.getByText('215 W')).toBeInTheDocument()
     expect(tip.getByText('power-capped 13 % of the time')).toBeInTheDocument()
-    expect(tip.getByText('slowed 20 % of the time')).toBeInTheDocument()
+    expect(tip.getByText('HW slowdown 20 % of the time')).toBeInTheDocument()
+    expect(tip.getByText('capped for heat 5 % of the time')).toBeInTheDocument()
   })
 
   it('does not name a power cap on an idle step', async () => {
@@ -194,8 +195,11 @@ describe('the GPU health card', () => {
     expect(ok).toHaveTextContent('✓ no faults')
     expect(ok).toHaveTextContent('link Gen4 x16 at best · now Gen1 x16')
     expect(ok).toHaveTextContent('correctable: 26 replays · 3.5k NAKs · 10k retrains · 3.5k AER')
+    expect(ok).not.toHaveTextContent('rollovers') // no faults: the zeros are in the hover, not the block
     const bad = screen.getByLabelText('GPU 1 · slot 7 health')
     expect(bad).toHaveTextContent('⚠ 2 faults')
+    expect(bad).toHaveTextContent('Xid 2')
+    expect(bad).not.toHaveTextContent('rollovers')
     expect(bad).toHaveAttribute('title', expect.stringContaining('Last Xid 79'))
     expect(screen.getByText(/driver 615\.71\.09/)).toBeInTheDocument()
   })

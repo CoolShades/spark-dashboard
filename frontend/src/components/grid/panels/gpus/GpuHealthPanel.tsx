@@ -42,6 +42,7 @@ function GpuBlock({ g }: { g: GpuExtra }) {
   const boot = h.since_boot
   const title = [
     'Correctable errors are retried by the link and cost no data; faults are the ones to act on.',
+    `Faults, 24 h: ${formatCount(h.rollovers)} replay rollovers, ${formatCount(h.uncorrectable)} uncorrectable, ${formatCount(h.xid)} Xid, ${h.slowdown_s ? formatRuntime(h.slowdown_s) : '0 s'} HW slowdown`,
     boot ? `Since the driver loaded: ${formatCount(boot.replays)} replays, ${formatCount(boot.retrains)} retrains, ${formatCount(boot.rollovers)} rollovers` : null,
     h.xid_last ? `Last Xid ${h.xid_last.code ?? '?'} at ${formatClock(Date.parse(h.xid_last.at))}` : null,
   ].filter(Boolean).join('\n')
@@ -59,12 +60,15 @@ function GpuBlock({ g }: { g: GpuExtra }) {
         {best ? <>link <span className="text-zinc-100">{best}</span> at best</> : 'link —'}
         {now && <span className={narrower ? 'text-amber-400' : 'text-zinc-500'}> · now {now}</span>}
       </div>
-      <div className="flex flex-wrap gap-x-2 text-[10px] 2xl:text-xs font-mono tabular-nums text-zinc-400">
-        <Fault name="rollovers" value={h.rollovers} />
-        <Fault name="uncorrectable" value={h.uncorrectable} />
-        <Fault name="Xid" value={h.xid} />
-        <Fault name="HW slowdown" value={h.slowdown_s} unit="s" />
-      </div>
+      {/* Only when there is one: "no faults" above already says the rest are zero (the hover lists them). */}
+      {faults > 0 && (
+        <div className="flex flex-wrap gap-x-2 text-[10px] 2xl:text-xs font-mono tabular-nums text-zinc-400">
+          {(h.rollovers ?? 0) > 0 && <Fault name="rollovers" value={h.rollovers} />}
+          {(h.uncorrectable ?? 0) > 0 && <Fault name="uncorrectable" value={h.uncorrectable} />}
+          {(h.xid ?? 0) > 0 && <Fault name="Xid" value={h.xid} />}
+          {(h.slowdown_s ?? 0) > 0 && <Fault name="HW slowdown" value={h.slowdown_s} unit="s" />}
+        </div>
+      )}
       {/* Wraps rather than cuts: the counts are only useful whole. */}
       <div className="text-[10px] 2xl:text-xs font-mono tabular-nums text-zinc-500 break-words">
         correctable: {formatCount(h.replays)} replays · {formatCount(h.naks)} NAKs · {formatCount(h.retrains)} retrains · {formatCount(h.aer_corrected)} AER
