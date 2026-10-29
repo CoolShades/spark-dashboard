@@ -41,6 +41,14 @@ import { InferenceTimelinePanel } from './panels/InferenceTimelinePanel'
 import { LogsPanel } from './panels/LogsPanel'
 import { MemoryPanel } from './panels/MemoryPanel'
 import { NetworkIoPanel } from './panels/NetworkIoPanel'
+import { PowerCostPanel } from './panels/power/PowerCostPanel'
+import { PowerDailyPanel } from './panels/power/PowerDailyPanel'
+import { PowerEnergyPanel } from './panels/power/PowerEnergyPanel'
+import { PowerHistoryPanel } from './panels/power/PowerHistoryPanel'
+import { PowerMainsPanel } from './panels/power/PowerMainsPanel'
+import { PowerSuppliesPanel } from './panels/power/PowerSuppliesPanel'
+import { PowerUpsPanel } from './panels/power/PowerUpsPanel'
+import { PowerWallPanel } from './panels/power/PowerWallPanel'
 
 /** Every panel content component takes the panel it renders, nothing else —
  *  data comes from the metrics store, not from props threaded through the grid. */
@@ -62,6 +70,14 @@ const PANEL_CONTENT: Partial<Record<PanelType, ComponentType<PanelContentProps>>
   memory: MemoryPanel,
   'disk-io': DiskIoPanel,
   'network-io': NetworkIoPanel,
+  'power-wall': PowerWallPanel,
+  'power-ups': PowerUpsPanel,
+  'power-cost': PowerCostPanel,
+  'power-energy': PowerEnergyPanel,
+  'power-history': PowerHistoryPanel,
+  'power-daily': PowerDailyPanel,
+  'power-mains': PowerMainsPanel,
+  'power-supplies': PowerSuppliesPanel,
   'engine-prefill-throughput': EnginePrefillThroughputPanel,
   'engine-decode-throughput': EngineDecodeThroughputPanel,
   'engine-latency': EngineLatencyPanel,

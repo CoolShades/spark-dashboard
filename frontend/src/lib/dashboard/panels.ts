@@ -87,6 +87,20 @@ export const PANEL_TYPES = {
   'disk-io': { binds: 'none', title: 'Disk I/O' },
   'network-io': { binds: 'none', title: 'Network' },
 
+  // ── Power ───────────────────────────────────────────────────────────────
+  // Read from the operator's power source (--power-url, docs/power.md), not
+  // from the metrics stream: a UPS and the supplies' meters are nothing NVML or
+  // /proc can see. None of them covers a time window — the history and daily
+  // charts span what the source returns, a day and a week.
+  'power-wall': { binds: 'none', title: 'Wall Power', size: { w: 3, h: 2 }, windowed: false },
+  'power-ups': { binds: 'none', title: 'UPS', size: { w: 3, h: 2 }, windowed: false },
+  'power-cost': { binds: 'none', title: 'Running Cost', size: { w: 3, h: 2 }, windowed: false },
+  'power-energy': { binds: 'none', title: 'Energy', size: { w: 3, h: 2 }, windowed: false },
+  'power-history': { binds: 'none', title: 'Power · 24 h', size: { w: 8, h: 3 }, windowed: false },
+  'power-daily': { binds: 'none', title: 'Energy · 7 days', size: { w: 4, h: 3 }, windowed: false },
+  'power-mains': { binds: 'none', title: 'Mains', size: { w: 6, h: 3 }, windowed: false },
+  'power-supplies': { binds: 'none', title: 'Power Supplies', size: { w: 6, h: 3 }, windowed: false },
+
   // ── Engines ─────────────────────────────────────────────────────────────
   // The only engine panel that binds to nothing: it is about the host, not
   // about one target.
