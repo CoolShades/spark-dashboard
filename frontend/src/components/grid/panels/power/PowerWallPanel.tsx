@@ -1,5 +1,5 @@
 import { Area, CartesianGrid, ComposedChart, Line, XAxis, YAxis } from 'recharts'
-import { ChartContainer, ChartTooltip, ChartTooltipContent } from '@/components/ui/chart'
+import { ChartContainer, ChartTooltip } from '@/components/ui/chart'
 import { useLatestSnapshot } from '@/hooks/useMetricsStore'
 import { POWER_POLL_MS, usePowerDocument } from '@/hooks/usePowerDocument'
 import { formatWattsValue, splitWall, sumGpuWatts } from '@/lib/power'
@@ -14,18 +14,32 @@ const SYSTEM_COLOR = '#71717a'
 const OTHER_COLORS = ['#38bdf8', '#a78bfa', '#f472b6']
 const METER_COLOR = '#e4e4e7'
 
-const SUPPLY_COLORS = ['#e4e4e7', '#a1a1aa', '#71717a']
-
-/** "23:26:19" for the live chart's tooltip. */
-function clock(t: number): string {
-  return new Date(t).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false })
+/**
+ * The hovered point on the supplies' line: a dot, and the metered figure in a small dark label just above it (below it
+ * when the point is near the chart's top), in place of a tooltip box.
+ */
+export function MeteredDot(props: { cx?: number; cy?: number; value?: number | null }) {
+  const { cx, cy, value } = props
+  if (cx == null || cy == null || value == null) return <g />
+  const text = `${formatWattsValue(value)} W`
+  const w = 8 + text.length * 5.6
+  const above = cy > 20
+  const y = above ? cy - 18 : cy + 6
+  return (
+    <g pointerEvents="none">
+      <circle cx={cx} cy={cy} r={2.5} fill={METER_COLOR} />
+      <rect x={cx - w / 2} y={y} width={w} height={13} rx={3} fill="#09090b" fillOpacity={0.85} />
+      <text x={cx} y={y + 9.5} textAnchor="middle" fontSize={9.5} fill={METER_COLOR}
+        style={{ fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace', fontVariantNumeric: 'tabular-nums' }}>{text}</text>
+    </g>
+  )
 }
 
 /**
  * The last few minutes at the wall, one point a poll, filling what the card has left: the wall figure as an area and
  * the supplies' own meters summed as a line (input where they have one, else output), on an axis scaled to what the
  * window holds (the UPS reads in coarse steps, the supplies every second, and both sit far above zero, so a
- * zero-based axis left them flat along the bottom). Hovering gives the moment's wall figure and each supply's reading.
+ * zero-based axis left them flat along the bottom). Hovering marks the supplies' line with its metered figure.
  */
 function LiveChart({ recent }: { recent: ReadonlyArray<{ at: number; data: PowerNow }> }) {
   const rows = recent
@@ -53,46 +67,12 @@ function LiveChart({ recent }: { recent: ReadonlyArray<{ at: number; data: Power
           <YAxis width={34} stroke={NVIDIA_THEME.chartAxis} fontSize={10} tickLine={false} axisLine={false} tickCount={3}
             domain={[Math.max(0, Math.floor((lo - pad) / 10) * 10), Math.ceil((hi + pad) / 10) * 10]}
             tickFormatter={(v: number) => formatWattsValue(v)} allowDecimals={false} />
-          {/* Opened upward, over the card's own figures: the chart sits at the card's foot, and the card clips below. */}
-          <ChartTooltip
-            position={{ y: -72 }}
-            allowEscapeViewBox={{ x: false, y: true }}
-            wrapperStyle={{ zIndex: 30 }}
-            content={
-              <ChartTooltipContent
-                labelFormatter={(_, p) => clock(Number(p?.[0]?.payload?.t ?? 0))}
-                formatter={(value, name, item, index) => {
-                  const line = (color: string, label: string, text: string) => (
-                    <div className="flex w-full items-center gap-2">
-                      <span className="h-2.5 w-2.5 shrink-0 rounded-[2px]" style={{ backgroundColor: color }} />
-                      <span className="text-muted-foreground">{label}</span>
-                      <span className="ml-auto pl-3 font-mono font-medium text-foreground tabular-nums">{text}</span>
-                    </div>
-                  )
-                  const main = name === 'wall'
-                    ? line(NVIDIA_THEME.accent, 'Wall (est.)', `${formatWattsValue(Number(value))} W`)
-                    : line(METER_COLOR, 'Supplies, metered', `${formatWattsValue(Number(value))} W`)
-                  if (index !== 1) return main
-                  const row = item?.payload as (typeof rows)[number]
-                  return (
-                    <div className="grid w-full gap-1.5">
-                      {main}
-                      <div className="grid gap-1 border-t border-border/50 pt-1.5">
-                        {row.supplies.map((sp, k) => {
-                          const w = sp.input_watts ?? sp.output_watts
-                          return w === null ? null : line(SUPPLY_COLORS[k % SUPPLY_COLORS.length], `${sp.name} ${sp.input_watts !== null ? 'in' : 'out'}`, `${formatWattsValue(w)} W`)
-                        })}
-                      </div>
-                    </div>
-                  )
-                }}
-              />
-            }
-          />
+          {/* No tooltip box: a faint cursor, and the supplies' metered figure as a small label above the line (MeteredDot). */}
+          <ChartTooltip content={() => null} cursor={{ stroke: '#52525b', strokeDasharray: '2 2' }} isAnimationActive={false} />
           <Area dataKey="wall" type="stepAfter" stroke={NVIDIA_THEME.accent} fill={NVIDIA_THEME.accent} fillOpacity={0.15}
-            strokeWidth={1.5} isAnimationActive={false} connectNulls />
+            strokeWidth={1.5} isAnimationActive={false} connectNulls activeDot={false} />
           <Line dataKey="metered" type="monotone" stroke={METER_COLOR} strokeOpacity={0.7} strokeWidth={1.1} dot={false}
-            isAnimationActive={false} connectNulls />
+            isAnimationActive={false} connectNulls activeDot={MeteredDot} />
         </ComposedChart>
       </ChartContainer>
       <p className="shrink-0 text-[10px] 2xl:text-xs text-zinc-500 font-mono tabular-nums truncate">
@@ -138,7 +118,7 @@ function GpuRow({ gpus, labels }: { gpus: ReadonlyArray<GpuMetrics>; labels: Rea
  * meter (a router on the UPS, estimated by the source), and the system: CPU,
  * memory, disks, fans and the supplies' losses. Then the GPU slice card by
  * card, and a live chart of the last few minutes, polled every 2 s, scaled to
- * what it holds, with each moment's readings on hover.
+ * what it holds, the supplies' metered figure on hover.
  */
 export function PowerWallPanel() {
   const now = usePowerDocument<PowerNow>('now', POWER_POLL_MS.now)

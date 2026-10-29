@@ -14,7 +14,7 @@ import { PowerMainsPanel } from '../components/grid/panels/power/PowerMainsPanel
 import { PowerHistoryPanel } from '../components/grid/panels/power/PowerHistoryPanel'
 import { PowerDailyPanel } from '../components/grid/panels/power/PowerDailyPanel'
 import { PowerUpsPanel } from '../components/grid/panels/power/PowerUpsPanel'
-import { PowerWallPanel } from '../components/grid/panels/power/PowerWallPanel'
+import { MeteredDot, PowerWallPanel } from '../components/grid/panels/power/PowerWallPanel'
 import type { GpuMetrics, MetricsSnapshot } from '../types/metrics'
 import type { PowerHistory, PowerNow } from '../types/power'
 
@@ -559,5 +559,23 @@ describe('the wall card\'s GPU row', () => {
     expect(screen.getByRole('group', { name: 'GPU 0' })).toHaveTextContent('GPU 0175Wslot 2')
     expect(screen.getByLabelText('GPU 0, 50 % of its power limit')).toBeInTheDocument() // 175 of 350 W
     expect(screen.getByLabelText('GPU 1, 6 % of its power limit')).toBeInTheDocument()
+  })
+})
+
+describe('the wall chart\'s hover label', () => {
+  const at = (cy: number, value: number | null) => {
+    const { container } = render(<svg><MeteredDot cx={100} cy={cy} value={value} /></svg>)
+    return container
+  }
+
+  it('gives only the supplies\' metered figure, just above the line', () => {
+    const c = at(60, 336.4)
+    expect(c.querySelector('text')).toHaveTextContent(/^336 W$/)
+    expect(Number(c.querySelector('rect')?.getAttribute('y'))).toBeLessThan(60)
+  })
+
+  it('drops below the line near the chart\'s top, and draws nothing without a reading', () => {
+    expect(Number(at(8, 410).querySelector('rect')?.getAttribute('y'))).toBeGreaterThan(8)
+    expect(at(40, null).querySelector('text')).toBeNull()
   })
 })
