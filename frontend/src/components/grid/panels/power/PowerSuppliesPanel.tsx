@@ -53,7 +53,6 @@ function Supply({ s, history }: { s: PowerSupply; history: PowerHistory | null }
     s.temperature_c !== null ? `${s.temperature_c.toFixed(1)} °C` : null,
     s.fan_rpm !== null ? (s.fan_rpm > 0 ? `fan ${Math.round(s.fan_rpm)} rpm` : 'fan off') : null,
     s.input_volts !== null && va === null ? `${Math.round(s.input_volts)} V in` : null,
-    s.capacity_watts ? `${s.capacity_watts.toLocaleString('en-GB')} W rated` : null,
   ].filter(Boolean)
 
   return (

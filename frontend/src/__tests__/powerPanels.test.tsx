@@ -234,6 +234,7 @@ describe('Power panels', () => {
     expect(screen.queryByText(/VA\)/)).toBeNull()
     expect(screen.getByText('24 h 12.01–12.14')).toBeInTheDocument()
     expect(screen.queryByText('#6')).toBeNull() // the connector list is not shown
+    expect(screen.queryByText(/W rated/)).toBeNull() // the rating drives the bar, not a line of its own
   })
 
   it('split today into the idle floor and the work above it', async () => {
