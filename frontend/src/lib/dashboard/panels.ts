@@ -170,6 +170,17 @@ export const PANEL_TYPES = {
   // other engine panel instead of being a fixed drawer. A line of container
   // output is long, and a tail has no window to cover.
   logs: { binds: 'engine', title: 'Logs', size: { w: 6, h: 4 }, windowed: false },
+
+  // ── Tokens ──────────────────────────────────────────────────────────────
+  // The engine's output, prompt and latency: live from the snapshot, with the
+  // day, the week and all time from the power source (--power-url, docs/power.md),
+  // which keeps the engine's counters. The cards are windowed for their strips.
+  'tokens-output': { binds: 'engine', title: 'Tokens · Output', size: { w: 4, h: 3 } },
+  'tokens-prompt': { binds: 'engine', title: 'Tokens · Prompt', size: { w: 4, h: 3 } },
+  'tokens-latency': { binds: 'engine', title: 'Tokens · Latency', size: { w: 4, h: 3 } },
+  'tokens-history': { binds: 'none', title: 'Tokens · 24 h', size: { w: 12, h: 3 }, windowed: false },
+  'tokens-daily': { binds: 'none', title: 'Tokens · 7 days', size: { w: 6, h: 2 }, windowed: false },
+  'tokens-ledger': { binds: 'none', title: 'Token Ledger', size: { w: 6, h: 2 }, windowed: false },
 } as const satisfies Record<string, PanelTypeSpec>
 
 /** A panel type this build implements. */

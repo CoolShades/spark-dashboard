@@ -41,6 +41,12 @@ import { GpuCardPanel } from './panels/gpus/GpuCardPanel'
 import { GpuDayPanel } from './panels/gpus/GpuDayPanel'
 import { GpuHealthPanel } from './panels/gpus/GpuHealthPanel'
 import { GpuThermalsPanel } from './panels/gpus/GpuThermalsPanel'
+import { TokensDailyPanel } from './panels/tokens/TokensDailyPanel'
+import { TokensHistoryPanel } from './panels/tokens/TokensHistoryPanel'
+import { TokensLatencyPanel } from './panels/tokens/TokensLatencyPanel'
+import { TokensLedgerPanel } from './panels/tokens/TokensLedgerPanel'
+import { TokensOutputPanel } from './panels/tokens/TokensOutputPanel'
+import { TokensPromptPanel } from './panels/tokens/TokensPromptPanel'
 import { InferenceTimelinePanel } from './panels/InferenceTimelinePanel'
 import { LogsPanel } from './panels/LogsPanel'
 import { MemoryPanel } from './panels/MemoryPanel'
@@ -101,6 +107,12 @@ const PANEL_CONTENT: Partial<Record<PanelType, ComponentType<PanelContentProps>>
   'engines-overview': EnginesOverviewPanel,
   'inference-timeline': InferenceTimelinePanel,
   logs: LogsPanel,
+  'tokens-output': TokensOutputPanel,
+  'tokens-prompt': TokensPromptPanel,
+  'tokens-latency': TokensLatencyPanel,
+  'tokens-history': TokensHistoryPanel,
+  'tokens-daily': TokensDailyPanel,
+  'tokens-ledger': TokensLedgerPanel,
 }
 
 /**

@@ -55,6 +55,12 @@ describe('the panel type vocabulary', () => {
       'engine-spec-decode',
       'inference-timeline',
       'logs',
+      'tokens-output',
+      'tokens-prompt',
+      'tokens-latency',
+      'tokens-history',
+      'tokens-daily',
+      'tokens-ledger',
     ])
   })
 
