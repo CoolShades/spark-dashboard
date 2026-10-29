@@ -3,7 +3,7 @@ import { fireEvent, render, screen, within } from '@testing-library/react'
 import type { ReactNode } from 'react'
 import { MetricsStoreContext } from '../hooks/useMetricsStore'
 import { resetPowerPollers } from '../hooks/usePowerDocument'
-import { formatClock } from '../lib/power'
+import { cumulativeCost, formatClock } from '../lib/power'
 import { MetricsHistoryStore } from '../lib/metricsHistoryStore'
 import { PowerBaselinePanel } from '../components/grid/panels/power/PowerBaselinePanel'
 import { PowerCostPanel } from '../components/grid/panels/power/PowerCostPanel'
@@ -299,18 +299,49 @@ function history(points: Array<[number, number]>, extra: Partial<PowerHistory['p
   }
 }
 
-describe('the Energy & Cost ledger', () => {
-  it('puts each period on one row, kWh and money side by side, split at the idle floor', async () => {
+describe('the Energy & Cost card', () => {
+  it('heads with the running cost, splits 30 days at the idle floor, and puts each period in a tile', async () => {
     respondBy({ now: NOW, history: history([[Date.UTC(2026, 9, 29, 10), 300], [Date.UTC(2026, 9, 29, 11), 900]]) })
     withStore(<PowerSummaryPanel />)
     expect(await screen.findByText('37p')).toBeInTheDocument()
-    expect(screen.getByText('today')).toBeInTheDocument()
-    expect(screen.getByText('per 30 d')).toBeInTheDocument()
-    expect(screen.getByText('~£71.19')).toBeInTheDocument()
-    expect(screen.getByText('270')).toBeInTheDocument() // 9.0 kWh a day x 30
-    expect(screen.getByText(/being on £54\.00 \+ work/)).toBeInTheDocument()
-    expect(screen.getByText(/2\.7 kWh vs yesterday by now/)).toBeInTheDocument()
-    expect(screen.getByText('£50.12/mo')).toBeInTheDocument()
+    expect(screen.getByText('£54.00')).toBeInTheDocument() // per 30 d, being on
+    expect(screen.getByText('£17.19')).toBeInTheDocument() // per 30 d, work
+    expect(screen.getByRole('group', { name: 'Today' })).toHaveTextContent('£2.007.6 kWh · work 87p')
+    expect(screen.getByRole('group', { name: 'Month' })).toHaveTextContent('£4.3516.5 kWh so far')
+    expect(screen.getByRole('group', { name: 'Per 30 d' })).toHaveTextContent('~£71.19270 kWh at 7-d rate')
+    expect(screen.getByRole('group', { name: 'Vs yesterday' })).toHaveTextContent('▲ 2.7kWh+71p by now') // 2.7 kWh at 26.32p
+    expect(screen.getByRole('group', { name: 'Per day' })).toHaveTextContent('£2.379.0 kWh · last 7 d')
+    expect(screen.getByRole('group', { name: 'Sitting idle' })).toHaveTextContent('£50.12/mo~21 h a day')
+  })
+
+  it('draws today\'s spend against yesterday\'s from the 7-day document', async () => {
+    const flat = (w: number) => Array.from({ length: 24 }, () => w)
+    respondBy({
+      now: NOW,
+      daily: { currency: 'GBP', days: [
+        { date: '2026-10-28', kwh: 9.6, cost: 2.53, average_watts: 400, peak_watts: 900, coverage: 1, hourly_watts: flat(400) },
+        { date: '2026-10-29', kwh: 4.8, cost: 1.26, average_watts: 400, peak_watts: 900, coverage: 0.5, hourly_watts: flat(400) },
+      ] },
+    })
+    withStore(<PowerSummaryPanel />)
+    expect(await screen.findByLabelText('Today vs yesterday, cost through the day')).toBeInTheDocument()
+    expect(screen.getByText(/£2\.53 all day/)).toBeInTheDocument() // 400 W for 24 h at 26.32p
+  })
+})
+
+describe('a day\'s spend hour by hour', () => {
+  it('adds each hour at the unit price, skips hours with no reading, and stops today at now', () => {
+    const day = { date: '2026-10-29', kwh: 0, cost: 0, average_watts: null, peak_watts: null, coverage: 1,
+      hourly_watts: [1000, null, 500, ...Array.from({ length: 21 }, () => 0)] }
+    const all = cumulativeCost(day, 0.25)
+    expect(all[0]).toEqual([0, 0])
+    expect(all[1]).toEqual([1, 0.25])
+    expect(all[2]).toEqual([2, 0.25]) // no reading: nothing added
+    expect(all[3][1]).toBeCloseTo(0.375)
+    expect(all).toHaveLength(25)
+    const soFar = cumulativeCost(day, 0.25, 2.5)
+    expect(soFar[soFar.length - 1][0]).toBe(2.5)
+    expect(soFar[soFar.length - 1][1]).toBeCloseTo(0.3125) // half of hour 2's 0.125
   })
 })
 

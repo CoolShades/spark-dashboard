@@ -8,7 +8,7 @@
  */
 
 import { NVIDIA_THEME } from '@/lib/theme'
-import type { MainsLimits, UpsStatus } from '@/types/power'
+import type { MainsLimits, PowerDay, UpsStatus } from '@/types/power'
 
 /** Whole watts with thousands separators: "1,404". */
 export function formatWattsValue(watts: number): string {
@@ -214,4 +214,23 @@ export function upsTempColor(celsius: number | null): string {
   if (celsius >= 40) return NVIDIA_THEME.critical
   if (celsius >= 30) return NVIDIA_THEME.warning
   return '#f4f4f5'
+}
+
+/**
+ * What a day had cost by the end of each local clock hour, at `price` per kWh,
+ * from its hourly mean draw: [hours since midnight, money so far]. An hour with
+ * no reading adds nothing (no reading is the machine off, as the source counts
+ * it). `upTo` (in hours) stops today at now, the current hour pro rata.
+ */
+export function cumulativeCost(day: PowerDay | undefined, price: number, upTo = 24): Array<[number, number]> {
+  const hours = day?.hourly_watts
+  if (!hours?.length) return []
+  const out: Array<[number, number]> = [[0, 0]]
+  let sum = 0
+  for (let h = 0; h < Math.min(hours.length, Math.ceil(upTo)); h++) {
+    const span = Math.min(1, upTo - h)
+    sum += ((hours[h] ?? 0) / 1000) * span * price
+    out.push([h + span, sum])
+  }
+  return out
 }
