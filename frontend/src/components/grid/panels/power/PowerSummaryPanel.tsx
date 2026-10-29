@@ -41,7 +41,8 @@ function CostByHour({ history, unit, floor, currency }: { history: PowerHistory;
   const top = Math.max(...hours.map((h) => h.idle + h.work), 1e-9)
   const hh = (t: number) => new Date(t).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', hour12: false })
   return (
-    <div className="flex flex-col gap-0.5 min-w-0 flex-1 min-h-[2.5rem]">
+    // At most ~40 % of the card: on a tall panel the ledger is the point, the hours are the texture under it.
+    <div className="flex flex-col gap-0.5 min-w-0 flex-1 min-h-[2.5rem] max-h-[40%]">
       <span className="text-[9px] 2xl:text-[10px] uppercase tracking-wider text-zinc-500">cost by hour · last 24 h</span>
       <div className="flex items-end gap-px flex-1 min-h-0" aria-label="Cost by hour">
         {hours.map((h) => (
@@ -86,7 +87,7 @@ export function PowerSummaryPanel() {
   const perMonthKwh = e.run_rate_kwh_per_day != null ? e.run_rate_kwh_per_day * 30 : null
 
   const label = 'text-[10px] 2xl:text-xs uppercase tracking-wider text-zinc-400'
-  const num = 'text-sm 2xl:text-base font-bold font-mono tabular-nums text-zinc-100 text-right'
+  const num = 'text-sm 2xl:text-base min-[1920px]:text-lg font-bold font-mono tabular-nums text-zinc-100 text-right'
 
   return (
     <div className="h-full flex flex-col gap-2 min-w-0 overflow-hidden">
@@ -100,7 +101,7 @@ export function PowerSummaryPanel() {
         )}
       </div>
 
-      <div className="grid items-baseline gap-x-3 gap-y-1.5 min-w-0" style={{ gridTemplateColumns: 'auto auto auto 1fr' }}>
+      <div className="grid items-baseline gap-x-3 gap-y-1.5 min-[1920px]:gap-y-2.5 min-w-0" style={{ gridTemplateColumns: 'auto auto auto 1fr' }}>
         <span />
         <span className="text-[9px] text-zinc-500 text-right">kWh</span>
         <span className="text-[9px] text-zinc-500 text-right">{c === 'GBP' ? '£' : c}</span>
@@ -157,6 +158,7 @@ export function PowerSummaryPanel() {
 
       {history.data && <CostByHour history={history.data} unit={e.unit_price} floor={floor} currency={c} />}
 
+      <div className="mt-auto" />
       <FactLine>
         {formatUnitPrice(e.unit_price, c)}
         {e.tariff_label ? ` · ${e.tariff_label}` : ''}
