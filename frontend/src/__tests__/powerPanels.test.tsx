@@ -212,7 +212,7 @@ describe('Power panels', () => {
     expect(screen.queryByText(/VA\)/)).toBeNull()
     expect(screen.getByText('#6')).toBeInTheDocument()
     expect(screen.getByText('5.4')).toBeInTheDocument()
-    expect(screen.getByText('24 h 12.01–12.14')).toBeInTheDocument()
+    expect(screen.getByText(/\(24 h 12\.01–12\.14\)/)).toBeInTheDocument()
   })
 
   it('split today into the idle floor and the work above it', async () => {

@@ -56,22 +56,21 @@ export function PowerSuppliesPanel() {
             )}
             {facts.length > 0 && <FactLine>{facts.join(' · ')}</FactLine>}
             {s.rails && s.rails.length > 0 && (
-              <div className="grid gap-x-3 gap-y-0.5 text-[10px] 2xl:text-xs font-mono tabular-nums min-w-0" style={{ gridTemplateColumns: 'auto auto 1fr' }}>
+              // One wrapping line: each rail with its 24 h range, so a supply costs one line per rail set, not three.
+              <div className="flex flex-wrap gap-x-4 gap-y-0.5 text-[10px] 2xl:text-xs font-mono tabular-nums min-w-0">
                 {s.rails.map((r) => {
                   const bad = railOutOfSpec(r.volts, r.nominal_volts) || railOutOfSpec(r.volts_min_24h ?? null, r.nominal_volts)
                   return (
-                    <div key={r.name} className="contents">
-                      <span className="text-zinc-400">{r.name}</span>
+                    <span key={r.name} className="whitespace-nowrap" title="Now, current, and the lowest-highest reading in the last 24 h; ATX allows ±5 %">
+                      <span className="text-zinc-400">{r.name} </span>
                       <span style={{ color: bad ? NVIDIA_THEME.critical : '#e4e4e7' }}>
                         {r.volts !== null ? `${r.volts.toFixed(2)} V` : '—'}
-                        {r.amps !== null && <span className="text-zinc-500"> · {r.amps.toFixed(1)} A</span>}
                       </span>
-                      <span className="text-zinc-500 truncate" title="Lowest and highest reading in the last 24 h; ATX allows ±5 %">
-                        {r.volts_min_24h != null && r.volts_max_24h != null
-                          ? `24 h ${r.volts_min_24h.toFixed(2)}–${r.volts_max_24h.toFixed(2)}`
-                          : ''}
-                      </span>
-                    </div>
+                      {r.amps !== null && <span className="text-zinc-500"> {r.amps.toFixed(1)} A</span>}
+                      {r.volts_min_24h != null && r.volts_max_24h != null && (
+                        <span className="text-zinc-500"> (24 h {r.volts_min_24h.toFixed(2)}–{r.volts_max_24h.toFixed(2)})</span>
+                      )}
+                    </span>
                   )
                 })}
               </div>
