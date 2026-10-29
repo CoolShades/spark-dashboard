@@ -73,7 +73,7 @@ const NOW: PowerNow = {
     status: 'online',
     status_detail: 'ONLINE',
     load_percent: 52,
-    updated: '2026-10-29T16:11:45Z',
+    updated: new Date().toISOString(), // fresh: a reading older than 90 s shows as 'Not answering'
     output_watts: 1404,
     capacity_watts: 2700,
     battery_percent: 100,
@@ -392,5 +392,16 @@ describe('a 12 V connector near its limit', () => {
     })
     withStore(<PowerSuppliesPanel />)
     expect(await screen.findByRole('img', { name: '12V #6 at 35.0 A of its 40.5 A limit' })).toBeInTheDocument()
+  })
+})
+
+describe('a UPS that has stopped answering', () => {
+  it('says so instead of repeating its last state', async () => {
+    const old = new Date(Date.now() - 526_000).toISOString()
+    respond(200, { ...NOW, ups: { ...NOW.ups!, updated: old } })
+    withStore(<PowerUpsPanel />)
+    expect(await screen.findByText('Not answering')).toBeInTheDocument()
+    expect(screen.queryByText('Online')).toBeNull()
+    expect(screen.getByText(/no reading for 9 min/)).toBeInTheDocument()
   })
 })

@@ -1,6 +1,7 @@
 import { POWER_POLL_MS, usePowerDocument } from '@/hooks/usePowerDocument'
 import {
   batteryColor,
+  formatClock,
   formatRuntime,
   formatRuntimeShort,
   LOAD_THRESHOLDS,
@@ -9,7 +10,14 @@ import {
   UPS_STATUS_LABEL,
   upsStatusColor,
 } from '@/lib/power'
-import { thresholdColor } from '@/lib/theme'
+import { NVIDIA_THEME, thresholdColor } from '@/lib/theme'
+
+/** A UPS reading older than this is the monitoring link down, not a live state. */
+const STALE_S = 90
+
+function formatAge(s: number): string {
+  return s < 120 ? `${s} s` : s < 7200 ? `${Math.round(s / 60)} min` : `${Math.round(s / 3600)} h`
+}
 import type { PowerNow } from '@/types/power'
 import { usePanelDevice } from '../../panelDevice'
 import { PanelNotice } from '../PanelNotice'
@@ -27,13 +35,16 @@ export function PowerUpsPanel() {
   const ups = now.data.ups
   if (!ups) return <PanelNotice>No UPS reported</PanelNotice>
 
-  const color = upsStatusColor(ups.status)
-  const runtime = ups.runtime_seconds
-  const battery = onBattery(ups.status)
-  const load = ups.load_percent
   // The UPS reports load in whole percent and runtime in whole minutes, every 5 s: at a steady draw they sit still.
   // The reading's age and the mains voltage (0.1 V steps) are what show it is live.
   const age = ups.updated && now.fetchedAt !== null ? Math.max(0, Math.round((now.fetchedAt - Date.parse(ups.updated)) / 1000)) : null
+  // A reading this old is the monitoring link failing (apcupsd hung under load on 2026-10-29), not the UPS: the card
+  // says so instead of repeating the last state as if it were live, and dims the last figures.
+  const stale = age !== null && age > STALE_S
+  const color = stale ? NVIDIA_THEME.warning : upsStatusColor(ups.status)
+  const runtime = ups.runtime_seconds
+  const battery = !stale && onBattery(ups.status)
+  const load = ups.load_percent
   const volts = (now.recent as ReadonlyArray<{ at: number; data: PowerNow }>)
     .map((r) => ({ at: r.at, v: r.data.ups?.input_volts ?? null }))
     .filter((p): p is { at: number; v: number } => p.v !== null)
@@ -55,11 +66,19 @@ export function PowerUpsPanel() {
         <span className="inline-block w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: color, boxShadow: `0 0 6px ${color}` }} />
         {battery && runtime !== null ? (
           <Headline value={formatRuntime(runtime)} unit="left" color={runtimeColor(runtime)} tag={<StaleBadge state={now} />} />
+        ) : stale ? (
+          <Headline value="Not answering" color={color} tag={<StaleBadge state={now} />} />
         ) : (
           <Headline value={UPS_STATUS_LABEL[ups.status]} color={color} tag={<StaleBadge state={now} />} />
         )}
       </div>
-      <div className="grid grid-cols-3 gap-2 min-w-0">
+      {stale && (
+        <FactLine>
+          <span className="text-amber-400/90">no reading for {formatAge(age!)}</span> · last, at{' '}
+          {formatClock(Date.parse(ups.updated!))}: {UPS_STATUS_LABEL[ups.status]}
+        </FactLine>
+      )}
+      <div className={`grid grid-cols-3 gap-2 min-w-0 ${stale ? 'opacity-40' : ''}`}>
         <PowerStat
           label="Battery"
           value={ups.battery_percent !== null ? Math.round(ups.battery_percent) : '—'}
@@ -81,7 +100,7 @@ export function PowerUpsPanel() {
       {facts.length > 0 && (
         <FactLine>
           {facts.join(' · ')}
-          {age !== null && <span className={age > 30 ? 'text-amber-400' : 'text-zinc-600'}> · read {age} s ago</span>}
+          {age !== null && !stale && <span className={age > 30 ? 'text-amber-400' : 'text-zinc-600'}> · read {age} s ago</span>}
         </FactLine>
       )}
       <StripFooter caption={transfer ?? 'no transfer recorded'} title={transfer ?? undefined}>
