@@ -53,7 +53,11 @@ function LiveChart({ recent }: { recent: ReadonlyArray<{ at: number; data: Power
           <YAxis width={34} stroke={NVIDIA_THEME.chartAxis} fontSize={10} tickLine={false} axisLine={false} tickCount={3}
             domain={[Math.max(0, Math.floor((lo - pad) / 10) * 10), Math.ceil((hi + pad) / 10) * 10]}
             tickFormatter={(v: number) => formatWattsValue(v)} allowDecimals={false} />
+          {/* Opened upward, over the card's own figures: the chart sits at the card's foot, and the card clips below. */}
           <ChartTooltip
+            position={{ y: -72 }}
+            allowEscapeViewBox={{ x: false, y: true }}
+            wrapperStyle={{ zIndex: 30 }}
             content={
               <ChartTooltipContent
                 labelFormatter={(_, p) => clock(Number(p?.[0]?.payload?.t ?? 0))}
