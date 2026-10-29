@@ -142,7 +142,8 @@ describe('the Memory card', () => {
     respondBy({ host: DOC })
     withStore(<HostMemoryPanel />)
     expect(await screen.findByLabelText('DIMM A1 49 °C')).toBeInTheDocument()
-    expect(screen.getByText('A1–F1')).toBeInTheDocument() // one label per bank: its first and last slot
+    expect(screen.getByText('A1')).toBeInTheDocument() // every stick labelled underneath
+    expect(screen.getByText('F1')).toBeInTheDocument()
     expect(screen.getByText(/2 DIMMs · hottest/)).toHaveTextContent('2 DIMMs · hottest F1 55 °C')
     expect(screen.getByLabelText('CPU socket')).toHaveTextContent('CPU54°')
     fireEvent.mouseEnter(screen.getByLabelText('DIMM F1 55 °C'))

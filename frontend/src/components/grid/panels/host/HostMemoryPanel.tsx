@@ -87,35 +87,38 @@ export function HostMemoryPanel() {
           sub="BMC memory check" />
       </div>
       {/* The board turned a quarter: the manual's bank above the socket (H1-E1) on the left, the one below (A1-D1) on the
-          right, each stick upright and coloured on the thermal scale by its temperature (the legend under it), the socket
-          showing Tctl. The sticks take whatever height the card has left; hovering one gives its reading. */}
+          right, each bank spread across its half of the card, each stick upright, labelled, and coloured on the thermal scale
+          by its temperature (the legend under it), the socket showing Tctl. The sticks take whatever height the card has
+          left; hovering one gives its reading. */}
       {d && d.temps.dimm.length > 0 && (() => {
         const banks = d.dimm_layout ?? [d.temps.dimm.slice(0, 4).map((x) => slotName(x.name)), d.temps.dimm.slice(4).map((x) => slotName(x.name))]
         const stick = (slot: string) => {
           const x = d.temps.dimm.find((t) => slotName(t.name) === slot)
           return (
-            <div key={slot} className="w-2.5 2xl:w-3 h-full rounded-[2px] border border-black/40 cursor-default"
-              style={{ backgroundColor: x ? thermalColor(x.c) : '#27272a', boxShadow: 'inset 0 0 0 1px rgba(255,255,255,0.08)' }}
-              aria-label={x ? `DIMM ${slot} ${Math.round(x.c)} °C` : `DIMM ${slot} no reading`}
-              onMouseEnter={(e) => {
-                if (!x) return
-                const r = e.currentTarget.getBoundingClientRect()
-                setHover({ name: x.name, c: x.c, at: { top: r.top, bottom: r.bottom, x: r.left + r.width / 2, align: 'center' } })
-              }} />
+            <div key={slot} className="flex flex-col items-center gap-0.5 min-w-0 min-h-0">
+              <div className="flex-1 min-h-0 w-[55%] max-w-6 rounded-[2px] border border-black/40 cursor-default"
+                style={{ backgroundColor: x ? thermalColor(x.c) : '#27272a', boxShadow: 'inset 0 0 0 1px rgba(255,255,255,0.08)' }}
+                aria-label={x ? `DIMM ${slot} ${Math.round(x.c)} °C` : `DIMM ${slot} no reading`}
+                onMouseEnter={(e) => {
+                  if (!x) return
+                  const r = e.currentTarget.getBoundingClientRect()
+                  setHover({ name: x.name, c: x.c, at: { top: r.top, bottom: r.bottom, x: r.left + r.width / 2, align: 'center' } })
+                }} />
+              <span className="shrink-0 text-[8px] 2xl:text-[9px] font-mono text-zinc-500 leading-none">{slot}</span>
+            </div>
           )
         }
         return (
           <div className="flex-1 min-h-0 flex flex-col gap-0.5 min-w-0 mt-1">
-            <div className="flex-1 min-h-[56px] max-h-40 flex items-stretch justify-center gap-4" aria-label="DIMMs as they sit on the board" onMouseLeave={() => setHover(null)}>
+            <div className="flex-1 min-h-[56px] max-h-40 flex items-stretch gap-3" aria-label="DIMMs as they sit on the board" onMouseLeave={() => setHover(null)}>
               {banks.map((bank, bi) => (
                 <div key={bi} className="contents">
-                  {/* A bank: its sticks side by side, labelled once underneath with its outer and inner slot. */}
-                  <div className="flex flex-col items-center gap-0.5 min-h-0">
-                    <div className="flex-1 min-h-0 flex gap-[3px]">{bank.map(stick)}</div>
-                    <span className="shrink-0 text-[8px] 2xl:text-[9px] font-mono text-zinc-500 leading-none">{bank[0]}–{bank[bank.length - 1]}</span>
+                  {/* A bank across its half of the card, its sticks evenly spaced, each labelled underneath. */}
+                  <div className="flex-1 min-w-0 min-h-0 grid" style={{ gridTemplateColumns: `repeat(${bank.length}, minmax(0, 1fr))` }}>
+                    {bank.map(stick)}
                   </div>
                   {bi < banks.length - 1 && (
-                    <div className="self-center mb-3 h-[60%] min-h-[30px] aspect-square rounded-[3px] border border-zinc-600 bg-zinc-800/80 flex flex-col items-center justify-center gap-0.5"
+                    <div className="self-center mb-3 h-[60%] min-h-[30px] aspect-square shrink-0 rounded-[3px] border border-zinc-600 bg-zinc-800/80 flex flex-col items-center justify-center gap-0.5"
                       aria-label="CPU socket">
                       <span className="text-[8px] uppercase tracking-wider text-zinc-500 leading-none">CPU</span>
                       {d.temps.tctl != null && (
