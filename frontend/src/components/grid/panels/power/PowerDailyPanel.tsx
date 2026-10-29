@@ -1,4 +1,5 @@
-import { useMemo, useRef, useState } from 'react'
+import { useMemo, useRef, useState, type ReactNode } from 'react'
+import { createPortal } from 'react-dom'
 import { POWER_POLL_MS, usePowerDocument } from '@/hooks/usePowerDocument'
 import { formatDay, formatKwh, formatMoney, formatWattsValue } from '@/lib/power'
 import { NVIDIA_THEME } from '@/lib/theme'
@@ -13,9 +14,16 @@ const HOUR_TICKS = [0, 6, 12, 18]
 /** A bar shorter than this share of its column has no room for its kWh inside, so the figure sits just past its end. */
 const LABEL_INSIDE = 22
 
-type HourHover = { day: PowerDay; hour: number; x: number; y: number; below: boolean }
-/** A day's card: under the row near the top of the grid, above it lower down; on the side of the grid it was opened from. */
-type DayHover = { day: PowerDay; y: number; below: boolean; side: 'left' | 'right' }
+/**
+ * Where a hover card points, in viewport pixels: the hovered element's top and
+ * bottom, and the x it hangs from (an hour's centre, or the grid's edge on the
+ * side a day was hovered from).
+ */
+type Anchor = { top: number; bottom: number; x: number; align: 'center' | 'left' | 'right' }
+type HourHover = { day: PowerDay; hour: number; at: Anchor }
+type DayHover = { day: PowerDay; at: Anchor }
+/** A card opens above its row when the viewport has this much room there, below it otherwise. */
+const CARD_ROOM = 200
 
 /** Mix two #rrggbb colours: t = 0 gives a, t = 1 gives b. */
 function mix(a: string, b: string, t: number): string {
@@ -73,13 +81,12 @@ export function PowerDailyPanel() {
   const avg = fullDays.length ? fullDays.reduce((s, d) => s + d.kwh, 0) / fullDays.length : null
   const today = days[days.length - 1]?.date
 
-  const openDay = (d: PowerDay, el: HTMLElement, side: DayHover['side']) => {
+  const openDay = (d: PowerDay, el: HTMLElement, side: 'left' | 'right') => {
     const grid = gridRef.current?.getBoundingClientRect()
     if (!grid) return
     const r = el.getBoundingClientRect()
-    const y = r.top - grid.top
     setHover(null)
-    setDayHover({ day: d, y: y < 90 ? r.bottom - grid.top : y, below: y < 90, side })
+    setDayHover({ day: d, at: { top: r.top, bottom: r.bottom, x: side === 'right' ? grid.right : grid.left, align: side } })
   }
 
   return (
@@ -125,12 +132,9 @@ export function PowerDailyPanel() {
                       }}
                       aria-label={`${formatDay(d.date)} ${String(h).padStart(2, '0')}:00–${String((h + 1) % 24).padStart(2, '0')}:00 · ${w === null ? 'no reading' : `${formatWattsValue(w)} W average`}`}
                       onMouseEnter={(e) => {
-                        const grid = gridRef.current?.getBoundingClientRect()
                         const cell = e.currentTarget.getBoundingClientRect()
-                        if (!grid) return
-                        const y = cell.top - grid.top
                         setDayHover(null)
-                        setHover({ day: d, hour: h, x: cell.left - grid.left + cell.width / 2, y: y < 90 ? cell.bottom - grid.top : y, below: y < 90 })
+                        setHover({ day: d, hour: h, at: { top: cell.top, bottom: cell.bottom, x: cell.left + cell.width / 2, align: 'center' } })
                       }} />
                   )
                 })}
@@ -207,8 +211,7 @@ function HourTip({ hover, floor, unit, currency }: {
     </div>
   )
   return (
-    <div className="pointer-events-none absolute z-20 grid min-w-40 items-start gap-1.5 rounded-lg border border-border/50 bg-background px-2.5 py-1.5 text-xs shadow-xl"
-      style={{ left: hover.x, top: hover.y, transform: `translate(-50%, ${hover.below ? '6px' : 'calc(-100% - 6px)'})` }}>
+    <Floating at={hover.at} className="grid items-start gap-1.5 rounded-lg border border-border/50 bg-background px-2.5 py-1.5 text-xs shadow-xl min-w-40">
       <div className="font-medium text-foreground">{formatDay(hover.day.date)} · {hh(hover.hour)}–{hh(hover.hour + 1)}</div>
       {w === null ? (
         <div className="text-muted-foreground">no reading</div>
@@ -220,7 +223,7 @@ function HourTip({ hover, floor, unit, currency }: {
           {idle !== null && work !== null && row('transparent', 'Total', formatMoney(idle + work, currency))}
         </div>
       )}
-    </div>
+    </Floating>
   )
 }
 
@@ -250,9 +253,7 @@ function DayTip({ hover, currency, today }: { hover: DayHover; currency: string;
     </div>
   )
   return (
-    <div className="pointer-events-none absolute z-20 grid min-w-48 items-start gap-1.5 rounded-lg border border-border/50 bg-background px-2.5 py-1.5 text-xs shadow-xl"
-      style={{ ...(hover.side === 'right' ? { right: 0 } : { left: 0 }), top: hover.y,
-        transform: `translateY(${hover.below ? '6px' : 'calc(-100% - 6px)'})` }}>
+    <Floating at={hover.at} className="grid items-start gap-1.5 rounded-lg border border-border/50 bg-background px-2.5 py-1.5 text-xs shadow-xl min-w-48">
       <div className="font-medium text-foreground">{formatDay(d.date)}{d.date === today ? ' · so far' : ''}</div>
       {d.coverage === 0 ? (
         <div className="text-muted-foreground">no readings</div>
@@ -268,7 +269,24 @@ function DayTip({ hover, currency, today }: { hover: DayHover; currency: string;
           {facts.length > 0 && <div className="grid gap-0.5 text-muted-foreground">{facts.map((f) => <span key={f}>{f}</span>)}</div>}
         </>
       )}
-    </div>
+    </Floating>
+  )
+}
+
+/**
+ * A hover card on a layer of its own (portalled to <body>, fixed to the
+ * viewport): the panel clips whatever overflows it, and a day's card is taller
+ * than a two-row panel. It opens above the row when there is room, else below.
+ */
+function Floating({ at, className, children }: { at: Anchor; className: string; children: ReactNode }) {
+  const above = at.top > CARD_ROOM
+  const tx = at.align === 'center' ? '-50%' : at.align === 'right' ? '-100%' : '0'
+  return createPortal(
+    <div className={`pointer-events-none fixed z-50 ${className}`}
+      style={{ left: at.x, top: above ? at.top - 6 : at.bottom + 6, transform: `translate(${tx}, ${above ? '-100%' : '0'})` }}>
+      {children}
+    </div>,
+    document.body,
   )
 }
 
