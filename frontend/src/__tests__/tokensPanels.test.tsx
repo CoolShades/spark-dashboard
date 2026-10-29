@@ -120,6 +120,7 @@ describe('the Output card', () => {
     expect(screen.getByRole('group', { name: 'Spec accept' })).toHaveTextContent('65%')
     expect(screen.getByRole('group', { name: 'Accept len' })).toHaveTextContent('2.94tok')
     expect(screen.getByRole('group', { name: 'Cut short' })).toHaveTextContent('2%')
+    expect(screen.getByLabelText('Output tokens a second, last few minutes')).toBeInTheDocument() // the live chart
   })
 
   it('still shows the day when no engine is serving', async () => {

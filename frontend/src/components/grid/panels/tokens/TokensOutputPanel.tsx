@@ -6,7 +6,7 @@ import type { TokenDoc } from '@/types/tokens'
 import { usePanelDevice } from '../../panelDevice'
 import type { PanelContentProps } from '../../panelRegistry'
 import { Headline, PowerNotice, PowerStat } from '../power/PowerParts'
-import { SeriesStrip } from './TokenParts'
+import { HoverStrip } from './TokenParts'
 import { useEngineSeries, useTokensEngine } from './useTokensEngine'
 
 const PILL = 'text-[9px] uppercase tracking-wider border rounded px-1'
@@ -17,8 +17,9 @@ const PILL = 'text-[9px] uppercase tracking-wider border rounded px-1'
  * then three rows of three: today against yesterday by this time, the busiest
  * minute of the day, tokens per request; requests running, waiting, and each
  * one's decode speed; speculative decoding's acceptance and length, and the
- * share of requests cut short at their max tokens. A strip of the live rate.
- * Live figures are the snapshot's; the rest is the power source's /tokens.
+ * share of requests cut short at their max tokens. A chart of the live rate
+ * fills the rest, with its value on hover. Live figures are the snapshot's;
+ * the rest is the power source's /tokens.
  */
 export function TokensOutputPanel({ panel }: PanelContentProps) {
   const engine = useTokensEngine(panel)
@@ -78,8 +79,13 @@ export function TokensOutputPanel({ panel }: PanelContentProps) {
         <PowerStat label="Accept len" value={len !== null ? len.toFixed(2) : '—'} unit={len !== null ? 'tok' : undefined} sub="per draft step" />
         <PowerStat label="Cut short" value={cut ?? '—'} unit={cut !== null ? '%' : undefined} sub="hit max tokens, 24 h" />
       </div>
-      <SeriesStrip points={tps} color={NVIDIA_THEME.accent} label="Output tokens a second, last few minutes"
-        caption={<><span style={{ color: NVIDIA_THEME.accent }}>output</span> tok/s, last {panel.window}</>} />
+      <div className="mt-1 flex-1 min-h-[44px] flex flex-col gap-0.5 min-w-0">
+        <HoverStrip points={tps} color={NVIDIA_THEME.accent} label="Output tokens a second, last few minutes" axis
+          format={(v) => `${formatRate(v)} tok/s`} />
+        <p className="shrink-0 text-[10px] 2xl:text-xs text-zinc-500 font-mono tabular-nums truncate">
+          <span style={{ color: NVIDIA_THEME.accent }}>output</span> tok/s, last {panel.window}
+        </p>
+      </div>
     </div>
   )
 }

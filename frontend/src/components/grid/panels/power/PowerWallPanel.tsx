@@ -8,32 +8,11 @@ import type { GpuMetrics } from '@/types/metrics'
 import type { PowerHistory, PowerNow } from '@/types/power'
 import { usePanelDevice } from '../../panelDevice'
 import { PanelNotice } from '../PanelNotice'
-import { FactLine, Headline, PowerNotice, PowerStat, StaleBadge } from './PowerParts'
+import { FactLine, Headline, HoverLabel, PowerNotice, PowerStat, StaleBadge, type HoveredPoint } from './PowerParts'
 
 const SYSTEM_COLOR = '#71717a'
 const OTHER_COLORS = ['#38bdf8', '#a78bfa', '#f472b6']
 const METER_COLOR = '#e4e4e7'
-
-/**
- * The hovered point on the supplies' line: a dot, and the metered figure in a small dark label just above it (below it
- * when the point is near the chart's top), in place of a tooltip box.
- */
-export function MeteredDot(props: { cx?: number; cy?: number; value?: number | null }) {
-  const { cx, cy, value } = props
-  if (cx == null || cy == null || value == null) return <g />
-  const text = `${formatWattsValue(value)} W`
-  const w = 8 + text.length * 5.6
-  const above = cy > 20
-  const y = above ? cy - 18 : cy + 6
-  return (
-    <g pointerEvents="none">
-      <circle cx={cx} cy={cy} r={2.5} fill={METER_COLOR} />
-      <rect x={cx - w / 2} y={y} width={w} height={13} rx={3} fill="#09090b" fillOpacity={0.85} />
-      <text x={cx} y={y + 9.5} textAnchor="middle" fontSize={9.5} fill={METER_COLOR}
-        style={{ fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace', fontVariantNumeric: 'tabular-nums' }}>{text}</text>
-    </g>
-  )
-}
 
 /**
  * The last few minutes at the wall, one point a poll, filling what the card has left: the wall figure as an area and
@@ -67,12 +46,16 @@ function LiveChart({ recent }: { recent: ReadonlyArray<{ at: number; data: Power
           <YAxis width={34} stroke={NVIDIA_THEME.chartAxis} fontSize={10} tickLine={false} axisLine={false} tickCount={3}
             domain={[Math.max(0, Math.floor((lo - pad) / 10) * 10), Math.ceil((hi + pad) / 10) * 10]}
             tickFormatter={(v: number) => formatWattsValue(v)} allowDecimals={false} />
-          {/* No tooltip box: a faint cursor, and the supplies' metered figure as a small label above the line (MeteredDot). */}
+          {/* No tooltip box: a faint cursor, and the supplies' metered figure as a small label above the line. */}
           <ChartTooltip content={() => null} cursor={{ stroke: '#52525b', strokeDasharray: '2 2' }} isAnimationActive={false} />
           <Area dataKey="wall" type="stepAfter" stroke={NVIDIA_THEME.accent} fill={NVIDIA_THEME.accent} fillOpacity={0.15}
             strokeWidth={1.5} isAnimationActive={false} connectNulls activeDot={false} />
           <Line dataKey="metered" type="monotone" stroke={METER_COLOR} strokeOpacity={0.7} strokeWidth={1.1} dot={false}
-            isAnimationActive={false} connectNulls activeDot={MeteredDot} />
+            isAnimationActive={false} connectNulls
+            activeDot={(d: HoveredPoint) => (
+              <HoverLabel cx={d.cx} cy={d.cy} color={METER_COLOR} at={(d.index ?? 0) / (rows.length - 1)}
+                text={typeof d.value === 'number' ? `${formatWattsValue(d.value)} W` : null} />
+            )} />
         </ComposedChart>
       </ChartContainer>
       <p className="shrink-0 text-[10px] 2xl:text-xs text-zinc-500 font-mono tabular-nums truncate">

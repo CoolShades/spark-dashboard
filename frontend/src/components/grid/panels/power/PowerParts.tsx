@@ -127,6 +127,31 @@ export function Sparkline({ points, color, label }: { points: ReadonlyArray<{ at
 }
 
 /**
+ * A chart's hovered point, in place of a tooltip box: a dot, and the value in a small dark label just above it. Near
+ * the chart's top the label goes below the point (`flip`, for a chart with room under its line); near either end of
+ * the window (`at`, the point's place in it, 0 to 1) it leans inward so it is not cut off at the chart's edge.
+ */
+/** What recharts hands an activeDot: the hovered point's place, value and index in the data. */
+export type HoveredPoint = { cx?: number; cy?: number; value?: unknown; index?: number }
+
+export function HoverLabel({ cx, cy, text, color, at = 0.5, flip = true }: {
+  cx?: number; cy?: number; text: string | null; color: string; at?: number; flip?: boolean
+}) {
+  if (cx == null || cy == null || text === null) return <g />
+  const w = 8 + text.length * 5.6
+  const y = !flip || cy > 20 ? cy - 18 : cy + 6
+  const x = at > 0.85 ? cx - w + 6 : at < 0.15 ? cx - 6 : cx - w / 2
+  return (
+    <g pointerEvents="none">
+      <circle cx={cx} cy={cy} r={2.5} fill={color} />
+      <rect x={x} y={y} width={w} height={13} rx={3} fill="#09090b" fillOpacity={0.85} />
+      <text x={x + w / 2} y={y + 9.5} textAnchor="middle" fontSize={9.5} fill={color}
+        style={{ fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace', fontVariantNumeric: 'tabular-nums' }}>{text}</text>
+    </g>
+  )
+}
+
+/**
  * Where a hover card points, in viewport pixels: the hovered element's top and
  * bottom, and the x it hangs from (an hour's centre, or the grid's edge on the
  * side a day was hovered from).

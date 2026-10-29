@@ -5,6 +5,7 @@ import { MetricsStoreContext } from '../hooks/useMetricsStore'
 import { resetPowerPollers } from '../hooks/usePowerDocument'
 import { cumulativeCost, formatClock } from '../lib/power'
 import { MetricsHistoryStore } from '../lib/metricsHistoryStore'
+import { HoverLabel } from '../components/grid/panels/power/PowerParts'
 import { PowerBaselinePanel } from '../components/grid/panels/power/PowerBaselinePanel'
 import { PowerCostPanel } from '../components/grid/panels/power/PowerCostPanel'
 import { PowerEnergyPanel } from '../components/grid/panels/power/PowerEnergyPanel'
@@ -14,7 +15,7 @@ import { PowerMainsPanel } from '../components/grid/panels/power/PowerMainsPanel
 import { PowerHistoryPanel } from '../components/grid/panels/power/PowerHistoryPanel'
 import { PowerDailyPanel } from '../components/grid/panels/power/PowerDailyPanel'
 import { PowerUpsPanel } from '../components/grid/panels/power/PowerUpsPanel'
-import { MeteredDot, PowerWallPanel } from '../components/grid/panels/power/PowerWallPanel'
+import { PowerWallPanel } from '../components/grid/panels/power/PowerWallPanel'
 import type { GpuMetrics, MetricsSnapshot } from '../types/metrics'
 import type { PowerHistory, PowerNow } from '../types/power'
 
@@ -562,20 +563,29 @@ describe('the wall card\'s GPU row', () => {
   })
 })
 
-describe('the wall chart\'s hover label', () => {
-  const at = (cy: number, value: number | null) => {
-    const { container } = render(<svg><MeteredDot cx={100} cy={cy} value={value} /></svg>)
-    return container
+describe('the charts\' hover label', () => {
+  const at = (props: Partial<Parameters<typeof HoverLabel>[0]>) => {
+    const { container } = render(<svg><HoverLabel cx={100} cy={60} text="336 W" color="#e4e4e7" {...props} /></svg>)
+    return { text: container.querySelector('text'), rect: container.querySelector('rect') }
   }
+  const num = (el: Element | null, name: string) => Number(el?.getAttribute(name))
 
-  it('gives only the supplies\' metered figure, just above the line', () => {
-    const c = at(60, 336.4)
-    expect(c.querySelector('text')).toHaveTextContent(/^336 W$/)
-    expect(Number(c.querySelector('rect')?.getAttribute('y'))).toBeLessThan(60)
+  it('gives the value in a small label just above the point, centred on it', () => {
+    const { text, rect } = at({})
+    expect(text).toHaveTextContent(/^336 W$/)
+    expect(num(rect, 'y')).toBeLessThan(60)
+    expect(num(rect, 'x') + num(rect, 'width') / 2).toBe(100)
   })
 
-  it('drops below the line near the chart\'s top, and draws nothing without a reading', () => {
-    expect(Number(at(8, 410).querySelector('rect')?.getAttribute('y'))).toBeGreaterThan(8)
-    expect(at(40, null).querySelector('text')).toBeNull()
+  it('drops below the point near the chart\'s top unless told to stay above, and leans inward at the window\'s ends', () => {
+    expect(num(at({ cy: 8 }).rect, 'y')).toBeGreaterThan(8)
+    expect(num(at({ cy: 8, flip: false }).rect, 'y')).toBeLessThan(8)
+    const end = at({ at: 1 }).rect
+    expect(num(end, 'x') + num(end, 'width')).toBeLessThan(110) // ends just past the point, not half a label past it
+    expect(num(at({ at: 0 }).rect, 'x')).toBeGreaterThan(90)
+  })
+
+  it('draws nothing without a reading', () => {
+    expect(at({ text: null }).text).toBeNull()
   })
 })
