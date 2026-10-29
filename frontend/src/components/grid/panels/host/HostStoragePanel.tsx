@@ -84,9 +84,28 @@ export function HostStoragePanel({ panel }: PanelContentProps) {
             </div>
           )
         })}
-        {alone.length > 0 && (
+        {alone.filter((x) => x.used_percent != null).map((x) => (
+          // A drive on its own with a filesystem the source can see gets a row like an array's (the models disk).
+          <div key={x.device} className="flex flex-col gap-0.5 min-w-0" aria-label={`${x.device} ${x.role ?? ''}`}>
+            <div className="flex items-baseline gap-2 text-[10px] 2xl:text-xs font-mono tabular-nums min-w-0">
+              <span className="text-zinc-200 uppercase">{x.role ?? x.device}</span>
+              <span className="text-zinc-500">{x.device}</span>
+              <span className="text-zinc-400 truncate">{x.mount}</span>
+              <span className="ml-auto shrink-0"><DriveSquare drive={x} up onHover={hoverAt} /></span>
+            </div>
+            <div className="flex items-center gap-2 min-w-0">
+              <div className="flex-1 h-1.5 rounded-full overflow-hidden bg-zinc-700/40">
+                <div className="h-full" style={{ width: `${x.used_percent}%`, backgroundColor: x.used_percent! >= 90 ? NVIDIA_THEME.critical : x.used_percent! >= 75 ? NVIDIA_THEME.warning : '#a1a1aa' }} />
+              </div>
+              <span className="text-[10px] 2xl:text-xs font-mono tabular-nums text-zinc-500 whitespace-nowrap">
+                {bytesParts(x.used).value} {bytesParts(x.used).unit} of {bytesParts(x.total).value} {bytesParts(x.total).unit}
+              </span>
+            </div>
+          </div>
+        ))}
+        {alone.some((x) => x.used_percent == null) && (
           <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 text-[10px] 2xl:text-xs font-mono tabular-nums text-zinc-400 min-w-0">
-            {alone.map((x) => (
+            {alone.filter((x) => x.used_percent == null).map((x) => (
               <span key={x.device} className="flex items-center gap-1.5">
                 <DriveSquare drive={x} up onHover={hoverAt} />
                 <span className="text-zinc-200">{x.role ?? x.device}</span>

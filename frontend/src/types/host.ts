@@ -36,6 +36,11 @@ export interface HostDrive {
   wear_percent: number | null
   reallocated: number | null
   uncorrectable: number | null
+  /** For a drive on its own, the filesystem on it (bytes), when the source can see it. */
+  mount?: string
+  total?: number | null
+  used?: number | null
+  used_percent?: number | null
 }
 
 export interface HostDoc {

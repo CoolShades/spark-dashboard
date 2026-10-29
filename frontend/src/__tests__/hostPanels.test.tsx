@@ -149,6 +149,13 @@ describe('the Storage card', () => {
     expect(screen.getByText('SMART passed · 46 °C')).toBeInTheDocument()
   })
 
+  it('gives a lone drive with a visible filesystem a row of its own', async () => {
+    const drives = DOC.drives.map((x) => (x.device === 'nvme1' ? { ...x, mount: '/home/coolshades/models', total: 1967 * GB, used: 393 * GB, used_percent: 20 } : x))
+    respondBy({ host: { ...DOC, drives } })
+    withStore(<HostStoragePanel panel={card('host-storage')} />)
+    expect(await screen.findByLabelText('nvme1 models')).toHaveTextContent('modelsnvme1/home/coolshades/models393 GB of 2.0 TB')
+  })
+
   it('says degraded when the kernel has a member down', async () => {
     respondBy({ host: { ...DOC, arrays: [{ ...DOC.arrays[1], map: 'U_' }] } })
     withStore(<HostStoragePanel panel={card('host-storage')} />)
