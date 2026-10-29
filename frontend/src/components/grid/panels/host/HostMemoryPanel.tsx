@@ -94,8 +94,7 @@ export function HostMemoryPanel() {
         const stick = (slot: string) => {
           const x = d.temps.dimm.find((t) => slotName(t.name) === slot)
           return (
-            <div key={slot} className="flex-1 min-h-[3px] flex items-center gap-1.5 min-w-0">
-              <span className="w-4 text-right text-[8px] 2xl:text-[9px] font-mono text-zinc-500 leading-none shrink-0">{slot}</span>
+            <div key={slot} className="flex-1 min-h-[3px] flex min-w-0">
               <div className="h-full flex-1 rounded-[2px] border border-black/40 cursor-default"
                 style={{ backgroundColor: x ? thermalColor(x.c) : '#27272a', boxShadow: 'inset 0 0 0 1px rgba(255,255,255,0.08)' }}
                 aria-label={x ? `DIMM ${slot} ${Math.round(x.c)} °C` : `DIMM ${slot} no reading`}
@@ -112,9 +111,15 @@ export function HostMemoryPanel() {
             <div className="flex-1 min-h-[56px] max-h-40 flex flex-col gap-[2px] px-[12%]" aria-label="DIMMs as they sit on the board" onMouseLeave={() => setHover(null)}>
               {banks.map((bank, bi) => (
                 <div key={bi} className="contents">
-                  {bank.map(stick)}
+                  {/* One label per bank (its first and last slot): a label per stick collides when the rows are thin. */}
+                  <div className="flex-[4] min-h-[14px] flex items-stretch gap-1.5 min-w-0">
+                    <span className="w-9 shrink-0 self-center text-right text-[8px] 2xl:text-[9px] font-mono text-zinc-500 leading-none">
+                      {bank[0]}–{bank[bank.length - 1]}
+                    </span>
+                    <div className="flex-1 flex flex-col gap-[2px] min-w-0">{bank.map(stick)}</div>
+                  </div>
                   {bi < banks.length - 1 && (
-                    <div className="flex-[3.5] min-h-[14px] flex items-center justify-center pl-5 py-[2px]">
+                    <div className="flex-[3.5] min-h-[14px] flex items-center justify-center pl-10 py-[2px]">
                       <div className="h-full aspect-[1.6] max-w-[45%] rounded-[3px] border border-zinc-600 bg-zinc-800/80 flex items-center justify-center gap-1.5"
                         aria-label="CPU socket">
                         <span className="text-[8px] uppercase tracking-wider text-zinc-500 leading-none">CPU</span>
