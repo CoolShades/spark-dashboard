@@ -430,3 +430,20 @@ describe('each supply\'s last 24 h', () => {
     expect(screen.queryByLabelText(/last 24 h/)).toBeNull()
   })
 })
+
+describe('the 7-day heatmap key', () => {
+  it('reads "kWh · on/work", with each day\'s kWh in a column of its own', async () => {
+    const hourly = Array.from({ length: 24 }, () => 300)
+    respondBy({
+      now: NOW,
+      daily: {
+        currency: 'GBP',
+        days: [{ date: '2026-10-29', kwh: 8.8, idle_kwh: 5.5, work_kwh: 3.3, cost: 2.34, average_watts: 466, peak_watts: 1553, coverage: 1, hourly_watts: hourly }],
+      },
+    })
+    withStore(<PowerDailyPanel />)
+    expect(await screen.findByText('8.8')).toBeInTheDocument()
+    expect(screen.getAllByText((_, el) => el?.tagName === 'SPAN' && el.textContent === 'kWh · on/work')).toHaveLength(1)
+    expect(screen.queryByText(/being on \//)).toBeNull()
+  })
+})

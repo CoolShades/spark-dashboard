@@ -32,7 +32,7 @@ function heat(watts: number, floor: number, peak: number): string {
  * The last seven days as a day x hour grid: each row a day, each cell an hour
  * coloured by its mean wall draw (from the idle floor up to the week's busiest
  * hour), then the day's energy as a bar split at the idle floor into being on
- * and work, and what it cost. The 24 h chart says how the last day went; this
+ * and work (the key: "on/work"), its kWh, and what it cost. The 24 h chart says how the last day went; this
  * says which hours of which days the machine works, and what each day cost.
  * Newest day on top. Hovering an hour gives its average draw and what it cost,
  * split at the idle floor into being on and work.
@@ -89,7 +89,7 @@ export function PowerDailyPanel() {
       </div>
 
       <div ref={gridRef} className="relative flex-1 min-h-0 grid gap-x-2 gap-y-1"
-        style={{ gridTemplateColumns: 'auto 1fr minmax(4rem, 18%) auto', gridTemplateRows: `repeat(${days.length}, minmax(0, 1fr)) auto` }}
+        style={{ gridTemplateColumns: 'auto 1fr minmax(3rem, 14%) auto auto', gridTemplateRows: `repeat(${days.length}, minmax(0, 1fr)) auto` }}
         onMouseLeave={() => setHover(null)}>
         {rowsNewestFirst.map((d) => {
           const none = d.coverage === 0
@@ -124,7 +124,9 @@ export function PowerDailyPanel() {
                   )
                 })}
               </div>
-              <div className="self-center flex items-center gap-1.5 min-w-0" title={dayTip(d)}>
+              {/* The bar has its column to itself, so its length is the day's share of the week's biggest day; the
+                  figure sits in the next column, right-aligned, rather than squeezing the longest bar. */}
+              <div className="self-center flex min-w-0" title={dayTip(d)}>
                 <div className="flex h-1.5 rounded-full overflow-hidden bg-zinc-800" style={{ width: `${none ? 0 : Math.max(6, (d.kwh / scale.maxKwh) * 100)}%` }}>
                   {idle !== null && work !== null && d.kwh > 0 ? (
                     <>
@@ -135,8 +137,10 @@ export function PowerDailyPanel() {
                     <div className="h-full w-full" style={{ backgroundColor: IDLE_COLOR }} />
                   )}
                 </div>
-                <span className="text-[10px] 2xl:text-xs font-mono tabular-nums text-zinc-300 whitespace-nowrap">{none ? '—' : formatKwh(d.kwh)}</span>
               </div>
+              <span className="self-center text-right text-[10px] 2xl:text-xs font-mono tabular-nums text-zinc-300 whitespace-nowrap" title={dayTip(d)}>
+                {none ? '—' : formatKwh(d.kwh)}
+              </span>
               <span className="self-center text-right text-[10px] 2xl:text-xs font-mono tabular-nums text-zinc-200 whitespace-nowrap" title={dayTip(d)}>
                 {none ? '' : formatMoney(d.cost, c)}{partial ? '*' : ''}
               </span>
@@ -150,8 +154,11 @@ export function PowerDailyPanel() {
           ))}
           <span className="absolute right-0">24</span>
         </div>
-        <span className="text-[9px] font-mono text-zinc-600 self-start">kWh · being on / work</span>
-        <span className="text-[9px] font-mono text-zinc-600 self-start text-right">{partial(days, today) ? '* part day' : ''}</span>
+        {/* The bars' key, one line under the bars, its two words in the bars' colours. */}
+        <div className="col-span-3 self-start flex gap-2 text-[9px] font-mono text-zinc-600 whitespace-nowrap">
+          <span>kWh · <span style={{ color: IDLE_COLOR }}>on</span>/<span style={{ color: NVIDIA_THEME.accent }}>work</span></span>
+          <span className="ml-auto">{partial(days, today) ? '* part day' : ''}</span>
+        </div>
         {hover && <HourTip hover={hover} floor={floor} unit={unit} currency={c} />}
       </div>
     </div>
