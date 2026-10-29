@@ -48,7 +48,7 @@ export function PowerUpsPanel() {
 
   return (
     <div
-      className="h-full flex flex-col gap-2 min-w-0 overflow-hidden rounded"
+      className="h-full flex flex-col gap-1 min-w-0 overflow-hidden rounded"
       style={battery ? { boxShadow: `inset 0 0 0 1px ${color}55`, background: `${color}0d` } : undefined}
     >
       <div className="flex items-center gap-2 min-w-0">
@@ -74,9 +74,8 @@ export function PowerUpsPanel() {
         <PowerStat
           label="Load"
           value={load !== null ? Math.round(load) : '—'}
-          unit="%"
           color={load !== null ? thresholdColor(load, LOAD_THRESHOLDS.warning, LOAD_THRESHOLDS.critical) : undefined}
-          sub={ups.capacity_watts ? `of ${Math.round(ups.capacity_watts).toLocaleString('en-GB')} W` : undefined}
+          unit={ups.capacity_watts ? `% of ${Math.round(ups.capacity_watts).toLocaleString('en-GB')} W` : '%'}
         />
       </div>
       {facts.length > 0 && (

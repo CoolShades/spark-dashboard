@@ -80,7 +80,7 @@ export function Headline({ value, unit, color, tag }: { value: ReactNode; unit?:
  */
 export function StripFooter({ children, caption, title }: { children: ReactNode; caption: ReactNode; title?: string }) {
   return (
-    <div className="mt-auto flex flex-col gap-0.5 min-w-0">
+    <div className="mt-auto shrink-0 flex flex-col gap-0.5 min-w-0">
       {children}
       <p className="text-[10px] 2xl:text-xs text-zinc-500 font-mono tabular-nums truncate" title={title}>{caption}</p>
     </div>
@@ -93,7 +93,8 @@ export function StripFooter({ children, caption, title }: { children: ReactNode;
  * useful whole, and a narrower window should cost height, not words.
  */
 export function FactLine({ children }: { children: ReactNode }) {
-  return <p className="text-[10px] 2xl:text-xs text-zinc-500 font-mono tabular-nums break-words line-clamp-2">{children}</p>
+  // shrink-0: in a short card a clamped line would otherwise be squeezed and cut through the middle of its text.
+  return <p className="shrink-0 text-[10px] 2xl:text-xs text-zinc-500 font-mono tabular-nums break-words line-clamp-2">{children}</p>
 }
 
 /**

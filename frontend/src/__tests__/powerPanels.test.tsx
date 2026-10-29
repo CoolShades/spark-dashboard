@@ -10,6 +10,7 @@ import { PowerEnergyPanel } from '../components/grid/panels/power/PowerEnergyPan
 import { PowerSuppliesPanel } from '../components/grid/panels/power/PowerSuppliesPanel'
 import { PowerSummaryPanel } from '../components/grid/panels/power/PowerSummaryPanel'
 import { PowerMainsPanel } from '../components/grid/panels/power/PowerMainsPanel'
+import { PowerHistoryPanel } from '../components/grid/panels/power/PowerHistoryPanel'
 import { PowerUpsPanel } from '../components/grid/panels/power/PowerUpsPanel'
 import { PowerWallPanel } from '../components/grid/panels/power/PowerWallPanel'
 import type { GpuMetrics, MetricsSnapshot } from '../types/metrics'
@@ -225,7 +226,6 @@ describe('Power panels', () => {
     withStore(<PowerSuppliesPanel />)
     expect(await screen.findByText('AX1600i · in')).toBeInTheDocument()
     expect(screen.getByText('HX850i · out')).toBeInTheDocument()
-    expect(screen.getByText('⚠ output current warning')).toBeInTheDocument()
     expect(screen.getByText(/fan off/)).toBeInTheDocument()
     expect(screen.getByText('12V')).toBeInTheDocument()
     expect(screen.getByText(/out 600 W · 93 % efficient/)).toBeInTheDocument()
@@ -319,5 +319,25 @@ describe('the Mains panel', () => {
     respondBy({ now: NOW, history: history([[Date.UTC(2026, 9, 29, 10), 300], [Date.UTC(2026, 9, 29, 11), 300]], { output_volts: 237 }) })
     withStore(<PowerMainsPanel />)
     expect(await screen.findByText('UPS out → PSUs')).toBeInTheDocument()
+  })
+})
+
+describe('the 24 h wall chart', () => {
+  it('puts the mains and the UPS output on its own volts axis', async () => {
+    respondBy({ now: NOW, history: history([[Date.UTC(2026, 9, 29, 10), 300], [Date.UTC(2026, 9, 29, 11), 900]], { output_volts: 237 }) })
+    withStore(<PowerHistoryPanel />)
+    expect(await screen.findByText(/mains in/)).toBeInTheDocument()
+    expect(screen.getByText(/UPS out/)).toBeInTheDocument()
+    expect(screen.getByText(/\(230\.0–240\.0\)/)).toBeInTheDocument()
+  })
+})
+
+describe('a supply flagging a condition', () => {
+  it('shows a ⚠ beside its name with the condition on hover', async () => {
+    respond(200, NOW)
+    withStore(<PowerSuppliesPanel />)
+    const icon = await screen.findByRole('img', { name: 'output current warning' })
+    expect(icon).toHaveAttribute('title', 'output current warning')
+    expect(screen.queryByText('⚠ output current warning')).toBeNull()
   })
 })

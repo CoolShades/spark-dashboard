@@ -1,4 +1,3 @@
-import { HBar } from '@/components/gauges/HBar'
 import { POWER_POLL_MS, usePowerDocument } from '@/hooks/usePowerDocument'
 import { LOAD_THRESHOLDS, railOutOfSpec } from '@/lib/power'
 import { NVIDIA_THEME, thresholdColor } from '@/lib/theme'
@@ -43,17 +42,35 @@ export function PowerSuppliesPanel() {
         ].filter(Boolean)
         return (
           <div key={s.name} className="flex flex-col gap-0.5 min-w-0">
-            {r ? (
-              <HBar
-                label={`${s.name} · ${r.side}`}
-                unit="W"
-                value={s.capacity_watts ? (r.watts / s.capacity_watts) * 100 : 0}
-                displayValue={r.watts}
-                thresholds={LOAD_THRESHOLDS}
-              />
-            ) : (
-              <span className="text-[10px] uppercase tracking-wider text-zinc-400">{s.name}</span>
-            )}
+            {/* The supply's name, the side it meters, a ⚠ carrying any condition it flags (in full on hover), its
+                watts, and the bar against its rating. */}
+            <div className="flex flex-col gap-0.5 lg:gap-1 w-full min-w-0">
+              <div className="flex items-baseline gap-1.5 min-w-0">
+                <span className="text-[9px] lg:text-[10px] text-zinc-400 uppercase tracking-wider truncate min-w-0">
+                  {s.name}{r ? ` · ${r.side}` : ''}
+                </span>
+                {s.warning && (
+                  <span role="img" aria-label={s.warning} title={s.warning} className="text-amber-400 text-[11px] leading-none cursor-help">⚠</span>
+                )}
+                {r && (
+                  <span className="ml-auto shrink-0 font-mono font-bold tabular-nums text-xs lg:text-sm 2xl:text-base text-zinc-100 leading-none">
+                    {Math.round(r.watts)}
+                    <span className="ml-0.5 text-[9px] lg:text-[10px] text-zinc-500">W</span>
+                  </span>
+                )}
+              </div>
+              {r && s.capacity_watts ? (
+                <div className="flex h-1.5 lg:h-2 w-full rounded-full overflow-hidden bg-zinc-700/40">
+                  <div
+                    className="h-full transition-all duration-500"
+                    style={{
+                      width: `${Math.min(100, (r.watts / s.capacity_watts) * 100)}%`,
+                      backgroundColor: thresholdColor((r.watts / s.capacity_watts) * 100, LOAD_THRESHOLDS.warning, LOAD_THRESHOLDS.critical),
+                    }}
+                  />
+                </div>
+              ) : null}
+            </div>
             {facts.length > 0 && <FactLine>{facts.join(' · ')}</FactLine>}
             {s.rails && s.rails.length > 0 && (
               // One wrapping line: each rail with its 24 h range, so a supply costs one line per rail set, not three.
@@ -97,7 +114,6 @@ export function PowerSuppliesPanel() {
                 </div>
               </div>
             )}
-            {s.warning && <p className="text-[10px] 2xl:text-xs text-amber-400 truncate" title={s.warning}>⚠ {s.warning}</p>}
           </div>
         )
       })}
