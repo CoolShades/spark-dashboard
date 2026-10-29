@@ -470,29 +470,47 @@ describe('a day in the 7-day heatmap', () => {
   })
 })
 
-describe('the UPS card\'s second row', () => {
-  it('shows the output, the battery volts with the self-test, and when the host is shut down', async () => {
-    respond(200, { ...NOW, ups: { ...NOW.ups!, output_amps: 1.53, output_va: 351, capacity_va: 3000, battery_volts: 54.5,
-      self_test: 'passed', shutdown_battery_percent: 20, shutdown_runtime_seconds: 300 } })
+describe('the UPS card\'s supply and battery rows', () => {
+  const UPS_MORE = {
+    ...NOW.ups!, output_volts: 236.1, avr: null, battery_volts: 54.5, self_test: 'passed', battery_date: '2026-10-15',
+    shutdown_battery_percent: 20, shutdown_runtime_seconds: 300,
+    battery_events: { days: 30, since: '2026-09-01T00:00:00Z', events: [
+      { start: '2026-10-24T12:02:00Z', seconds: 12, reason: 'Low line voltage', self_test: false },
+      { start: '2026-10-27T20:43:00Z', seconds: 5, reason: 'Automatic or explicit self test', self_test: true },
+    ] },
+  }
+
+  it('shows the mains in, what the PSUs get, the power cuts, the temperature, battery volts and battery age', async () => {
+    respond(200, { ...NOW, ups: UPS_MORE })
     withStore(<PowerUpsPanel />)
-    expect(await screen.findByText('1.53')).toBeInTheDocument()
-    expect(screen.getByText('≈351 VA of 3,000')).toBeInTheDocument()
-    expect(screen.getByText('54.5')).toBeInTheDocument()
-    expect(screen.getByText('self-test passed')).toBeInTheDocument()
-    expect(screen.getByRole('group', { name: 'Shuts down at' })).toHaveTextContent('20%or 5 min left')
+    expect(await screen.findByRole('group', { name: 'Mains in' })).toHaveTextContent('236.1V50.1 Hz')
+    expect(screen.getByRole('group', { name: 'To PSUs' })).toHaveTextContent('mains passed through')
+    const cuts = screen.getByRole('group', { name: 'Power cuts' })
+    expect(cuts).toHaveTextContent(/^Power cuts1in 30 dlast 24 Oct \d\d:\d\d, ~12 s$/) // the self-test is not a cut
+    expect(cuts.parentElement).toHaveAttribute('title', expect.stringContaining('(Low line voltage)'))
+    expect(screen.getByRole('group', { name: 'Temperature' })).toHaveTextContent('17.5°C')
+    expect(screen.getByRole('group', { name: 'Battery V' })).toHaveTextContent('54.5Vself-test passed')
+    expect(screen.getByRole('group', { name: 'Battery age' })).toHaveTextContent(/dated 15 Oct 2026$/)
+    expect(screen.getByText(/shuts down at 20 % or 5 min left/)).toBeInTheDocument()
   })
 
-  it('draws a failed self-test red, and leaves the row out for a source without these figures', async () => {
-    respond(200, { ...NOW, ups: { ...NOW.ups!, battery_volts: 46.1, self_test: 'failed (battery capacity)' } })
-    const { unmount } = withStore(<PowerUpsPanel />)
-    expect(await screen.findByText('self-test failed (battery capacity)')).toHaveClass('text-red-400')
-    unmount()
-    resetPowerPollers()
+  it('names the AVR at work, draws a failed self-test red, and counts from when monitoring began', async () => {
+    respond(200, { ...NOW, ups: { ...UPS_MORE, avr: 'trim', self_test: 'failed (battery capacity)',
+      battery_events: { days: 30, since: new Date(Date.now() - 2 * 86_400_000).toISOString(), events: [] } } })
+    withStore(<PowerUpsPanel />)
+    expect(await screen.findByText('AVR trimming high mains')).toBeInTheDocument()
+    expect(screen.getByText('self-test failed (battery capacity)')).toHaveClass('text-red-400')
+    expect(screen.getByRole('group', { name: 'Power cuts' })).toHaveTextContent(/^Power cuts0since \d+ \w+none recorded$/)
+  })
+
+  it('leaves out what the source does not report', async () => {
     respond(200, NOW)
     withStore(<PowerUpsPanel />)
     await screen.findByText('Online')
-    expect(screen.queryByRole('group', { name: 'Output' })).toBeNull()
-    expect(screen.queryByRole('group', { name: 'Shuts down at' })).toBeNull()
+    expect(screen.getByRole('group', { name: 'Mains in' })).toBeInTheDocument()
+    expect(screen.queryByRole('group', { name: 'To PSUs' })).toBeNull()
+    expect(screen.queryByRole('group', { name: 'Power cuts' })).toBeNull()
+    expect(screen.queryByRole('group', { name: 'Battery age' })).toBeNull()
   })
 })
 

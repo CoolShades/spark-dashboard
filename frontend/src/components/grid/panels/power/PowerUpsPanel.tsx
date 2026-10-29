@@ -1,60 +1,126 @@
+import type { ReactNode } from 'react'
 import { POWER_POLL_MS, usePowerDocument } from '@/hooks/usePowerDocument'
 import {
+  batteryAgeColor,
   batteryColor,
+  DEFAULT_MAINS,
+  formatBatteryAge,
   formatClock,
+  formatDate,
   formatRuntime,
   formatRuntimeShort,
-  formatWattsValue,
+  formatWhen,
   LOAD_THRESHOLDS,
   onBattery,
   runtimeColor,
   UPS_STATUS_LABEL,
   upsStatusColor,
+  upsTempColor,
+  voltsColor,
 } from '@/lib/power'
 import { NVIDIA_THEME, thresholdColor } from '@/lib/theme'
-
-/** A UPS reading older than this is the monitoring link down, not a live state. */
-const STALE_S = 90
-
-function formatAge(s: number): string {
-  return s < 120 ? `${s} s` : s < 7200 ? `${Math.round(s / 60)} min` : `${Math.round(s / 3600)} h`
-}
-import type { PowerNow, PowerUps } from '@/types/power'
+import type { MainsLimits, PowerNow, PowerUps } from '@/types/power'
 import { usePanelDevice } from '../../panelDevice'
 import { PanelNotice } from '../PanelNotice'
 import { FactLine, Headline, PowerNotice, PowerStat, Sparkline, StaleBadge, StripFooter } from './PowerParts'
 
+/** A UPS reading older than this is the monitoring link down, not a live state. */
+const STALE_S = 90
+const DAY_MS = 86_400_000
+
+function formatAge(s: number): string {
+  return s < 120 ? `${s} s` : s < 7200 ? `${Math.round(s / 60)} min` : `${Math.round(s / 3600)} h`
+}
+
+/** What the UPS does to the mains on its way to the load: passes it through, or its AVR boosts or trims it. */
+function regulation(ups: PowerUps): string | undefined {
+  if (onBattery(ups.status)) return 'from the battery'
+  if (ups.avr === 'boost') return 'AVR boosting low mains'
+  if (ups.avr === 'trim') return 'AVR trimming high mains'
+  if (ups.input_volts === null || ups.output_volts == null) return undefined
+  const d = ups.output_volts - ups.input_volts
+  return Math.abs(d) <= 1 ? 'mains passed through' : `${d > 0 ? '+' : ''}${d.toFixed(1)} V vs mains`
+}
+
 /**
- * The second row of figures, each shown only when the source reports it: what
- * the UPS hands out (amps, and VA against its VA rating), the battery string's
- * voltage with the last self-test, and when the host is shut down on battery.
+ * The spells on battery, counted as power cuts apart from self-tests: how many
+ * in the window (or since monitoring began, if that is shorter, as of `at`),
+ * and the last one under the count; the full list on hover.
  */
-function SecondRow({ ups, dim }: { ups: PowerUps; dim: boolean }) {
-  const pct = ups.shutdown_battery_percent ?? null
-  const left = ups.shutdown_runtime_seconds ?? null
+function powerCuts(ups: PowerUps, at: number): ReactNode {
+  const ev = ups.battery_events
+  if (!ev) return null
+  const cuts = ev.events.filter((e) => !e.self_test)
+  const tests = ev.events.filter((e) => e.self_test)
+  const short = ev.since !== null && at - Date.parse(ev.since) < (ev.days - 1) * DAY_MS
+  const last = cuts[cuts.length - 1]
+  const test = tests[tests.length - 1]
+  const sub = last ? `last ${formatWhen(last.start)}, ~${formatRuntime(last.seconds)}` : test ? `self-test ${formatWhen(test.start)}` : 'none recorded'
+  const title = ev.events.length
+    ? ev.events.map((e) => `${formatWhen(e.start)}: ~${formatRuntime(e.seconds)} on battery (${e.reason ?? 'no reason given'})`).join('\n')
+    : `No time on battery ${short ? `since ${formatDate(ev.since!)}` : `in ${ev.days} days`}`
+  return (
+    <div key="cuts" title={title} className="min-w-0">
+      <PowerStat label="Power cuts" value={cuts.length} unit={short ? `since ${formatDate(ev.since!).replace(/ \d{4}$/, '')}` : `in ${ev.days} d`} sub={sub} />
+    </div>
+  )
+}
+
+/** A row of three figures; one the source does not report is left out. */
+function Row({ stats, dim }: { stats: ReactNode[]; dim: boolean }) {
+  const shown = stats.filter(Boolean)
+  if (shown.length === 0) return null
+  return <div className={`grid grid-cols-3 gap-2 min-w-0 ${dim ? 'opacity-40' : ''}`}>{shown}</div>
+}
+
+/**
+ * The supply and the battery, two rows under the headline figures: the mains
+ * in, what the UPS hands the PSUs and whether its AVR is correcting it, and the
+ * power cuts it has ridden through; then its temperature, the battery string's
+ * voltage with the last self-test, and the battery's age.
+ */
+function MoreRows({ ups, limits, dim, at }: { ups: PowerUps; limits: MainsLimits; dim: boolean; at: number }) {
   const failed = ups.self_test?.startsWith('failed') ?? false
-  const stats = [
-    ups.output_amps != null && (
-      <PowerStat key="out" label="Output" value={ups.output_amps.toFixed(2)} unit="A"
-        sub={ups.output_va != null ? `≈${formatWattsValue(ups.output_va)} VA${ups.capacity_va ? ` of ${formatWattsValue(ups.capacity_va)}` : ''}` : undefined} />
-    ),
-    ups.battery_volts != null && (
-      <PowerStat key="batt" label="Battery V" value={ups.battery_volts.toFixed(1)} unit="V"
-        sub={ups.self_test ? <span className={failed ? 'text-red-400' : undefined}>self-test {ups.self_test}</span> : undefined} />
-    ),
-    (pct !== null || left !== null) && (
-      <PowerStat key="off" label="Shuts down at" value={pct !== null ? Math.round(pct) : formatRuntimeShort(left!)}
-        unit={pct !== null ? '%' : undefined} sub={pct !== null && left !== null ? `or ${formatRuntime(left)} left` : undefined} />
-    ),
-  ].filter(Boolean)
-  if (stats.length === 0) return null
-  return <div className={`grid grid-cols-3 gap-2 min-w-0 ${dim ? 'opacity-40' : ''}`}>{stats}</div>
+  const ageDays = ups.battery_date ? (at - Date.parse(`${ups.battery_date.slice(0, 10)}T00:00:00Z`)) / DAY_MS : null
+  const age = ageDays !== null && Number.isFinite(ageDays) ? formatBatteryAge(ageDays) : null
+  return (
+    <>
+      <Row dim={dim} stats={[
+        ups.input_volts !== null && (
+          <PowerStat key="in" label="Mains in" value={ups.input_volts.toFixed(1)} unit="V" color={voltsColor(ups.input_volts, limits)}
+            sub={ups.input_hz !== null ? `${ups.input_hz.toFixed(1)} Hz` : undefined} />
+        ),
+        ups.output_volts != null && (
+          <PowerStat key="out" label="To PSUs" value={ups.output_volts.toFixed(1)} unit="V" color={voltsColor(ups.output_volts, limits)}
+            sub={regulation(ups)} />
+        ),
+        powerCuts(ups, at),
+      ]} />
+      <Row dim={dim} stats={[
+        ups.temperature_c !== null && (
+          <PowerStat key="temp" label="Temperature" value={ups.temperature_c.toFixed(1)} unit="°C" color={upsTempColor(ups.temperature_c)}
+            sub="inside the UPS" />
+        ),
+        ups.battery_volts != null && (
+          <PowerStat key="bv" label="Battery V" value={ups.battery_volts.toFixed(1)} unit="V"
+            sub={ups.self_test ? <span className={failed ? 'text-red-400' : undefined}>self-test {ups.self_test}</span> : undefined} />
+        ),
+        age !== null && (
+          <PowerStat key="age" label="Battery age" value={age.value} unit={age.unit} color={batteryAgeColor(ageDays!)}
+            sub={`dated ${formatDate(ups.battery_date!)}`} />
+        ),
+      ]} />
+    </>
+  )
 }
 
 /**
  * The UPS at a glance. On mains the headline is its state; on battery it is
  * the runtime left, counting down, because that is the only number that
- * matters then (PeaNUT and Grafana's NUT board both do this).
+ * matters then (PeaNUT and Grafana's NUT board both do this). Under it three
+ * rows of three: the battery, runtime and load; the supply; the battery's
+ * health. Then when the host is shut down on battery, the reading's age, and a
+ * strip of the mains voltage over the last few minutes.
  */
 export function PowerUpsPanel() {
   const now = usePowerDocument<PowerNow>('now', POWER_POLL_MS.now)
@@ -76,14 +142,14 @@ export function PowerUpsPanel() {
   const volts = (now.recent as ReadonlyArray<{ at: number; data: PowerNow }>)
     .map((r) => ({ at: r.at, v: r.data.ups?.input_volts ?? null }))
     .filter((p): p is { at: number; v: number } => p.v !== null)
-  const facts = [
-    ups.input_volts !== null ? `in ${ups.input_volts.toFixed(1)} V` : null,
-    ups.input_hz !== null ? `${ups.input_hz.toFixed(1)} Hz` : null,
-    ups.temperature_c !== null ? `${ups.temperature_c.toFixed(1)} °C` : null,
-  ].filter(Boolean)
+  const pct = ups.shutdown_battery_percent ?? null
+  const left = ups.shutdown_runtime_seconds ?? null
+  const shutdown = pct !== null && left !== null ? `shuts down at ${Math.round(pct)} % or ${formatRuntime(left)} left`
+    : pct !== null ? `shuts down at ${Math.round(pct)} %` : left !== null ? `shuts down with ${formatRuntime(left)} left` : null
   const transfer =
     ups.last_transfer &&
     `last transfer: ${ups.last_transfer}${ups.transfers != null ? ` (${ups.transfers} since start)` : ''}`
+  const minutes = volts.length > 1 ? Math.max(1, Math.round((volts[volts.length - 1].at - volts[0].at) / 60_000)) : null
 
   return (
     <div
@@ -125,14 +191,15 @@ export function PowerUpsPanel() {
           unit={ups.capacity_watts ? `% of ${Math.round(ups.capacity_watts).toLocaleString('en-GB')} W` : '%'}
         />
       </div>
-      <SecondRow ups={ups} dim={stale} />
-      {facts.length > 0 && (
+      {/* "Now" for the battery's age and the cut window is when this reading was fetched: a render stays pure. */}
+      <MoreRows ups={ups} limits={now.data.mains ?? DEFAULT_MAINS} dim={stale} at={now.fetchedAt ?? Date.parse(now.data.at)} />
+      {(shutdown || (age !== null && !stale)) && (
         <FactLine>
-          {facts.join(' · ')}
-          {age !== null && !stale && <span className={age > 30 ? 'text-amber-400' : 'text-zinc-600'}> · read {age} s ago</span>}
+          {shutdown}
+          {age !== null && !stale && <span className={age > 30 ? 'text-amber-400' : 'text-zinc-600'}>{shutdown ? ' · ' : ''}read {age} s ago</span>}
         </FactLine>
       )}
-      <StripFooter caption={transfer ?? 'no transfer recorded'} title={transfer ?? undefined}>
+      <StripFooter caption={minutes !== null ? `mains in, last ${minutes} min` : 'mains in'} title={transfer ?? undefined}>
         <Sparkline points={volts} color="#38bdf8" label="Mains voltage, last few minutes" />
       </StripFooter>
     </div>

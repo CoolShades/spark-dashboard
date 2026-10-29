@@ -32,6 +32,10 @@ export interface PowerUps {
   output_amps?: number | null
   output_va?: number | null
   capacity_va?: number | null
+  /** Automatic voltage regulation at work: "boost" raises low mains, "trim" lowers high mains; null = passed through. */
+  avr?: 'boost' | 'trim' | null
+  /** The times the UPS ran on battery in the last `days`, oldest first; `since` is its first reading in that window. */
+  battery_events?: { days: number; since: string | null; events: PowerBatteryEvent[] } | null
   /** The last self-test's result, in words: "passed", "failed (battery capacity)", "no result". */
   self_test?: string | null
   /** When the host's UPS daemon shuts it down on battery: at this charge, or with this much runtime left. */
@@ -39,6 +43,16 @@ export interface PowerUps {
   shutdown_runtime_seconds?: number | null
   /** When the UPS last reported (ISO), so a panel can show the reading's age. */
   updated?: string | null
+}
+
+/** One spell on battery: a cut, a sag the UPS rode through, or a self-test. */
+export interface PowerBatteryEvent {
+  /** ISO start. */
+  start: string
+  seconds: number
+  /** The UPS's reason for the transfer, e.g. "Low line voltage". */
+  reason: string | null
+  self_test: boolean
 }
 
 /** One output rail of a supply, for the ones that report per-rail readings. */

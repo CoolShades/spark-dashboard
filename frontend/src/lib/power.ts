@@ -180,3 +180,38 @@ export function formatDay(date: string): string {
 export function formatClock(epochMs: number): string {
   return new Date(epochMs).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', hour12: false })
 }
+
+/** "27 Oct 20:43", local time, for an event's start. */
+export function formatWhen(iso: string): string {
+  const d = new Date(iso)
+  return `${d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })} ${formatClock(d.getTime())}`
+}
+
+/** "15 Oct 2026" for a YYYY-MM-DD date, without a time-zone shift. */
+export function formatDate(date: string): string {
+  const [y, m, d] = date.slice(0, 10).split('-').map(Number)
+  return new Date(Date.UTC(y, m - 1, d)).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' })
+}
+
+/** A battery's age as people say it: "9 d", "2 wk", "7 mo", "3.4 y". */
+export function formatBatteryAge(days: number): { value: string; unit: string } {
+  if (days < 14) return { value: String(Math.max(0, Math.floor(days))), unit: 'd' }
+  if (days < 61) return { value: String(Math.floor(days / 7)), unit: 'wk' }
+  if (days < 730) return { value: String(Math.floor(days / 30.44)), unit: 'mo' }
+  return { value: (days / 365.25).toFixed(1), unit: 'y' }
+}
+
+/** Battery age: amber from 3 years, red from 5 (APC's usual 3-5 year life for its sealed lead-acid packs). */
+export function batteryAgeColor(days: number): string {
+  if (days >= 5 * 365.25) return NVIDIA_THEME.critical
+  if (days >= 3 * 365.25) return NVIDIA_THEME.warning
+  return '#f4f4f5'
+}
+
+/** UPS internal temperature: amber from 30 °C, red from 40 °C (lead-acid life halves for every ~8-10 °C over 25). */
+export function upsTempColor(celsius: number | null): string {
+  if (celsius === null) return '#a1a1aa'
+  if (celsius >= 40) return NVIDIA_THEME.critical
+  if (celsius >= 30) return NVIDIA_THEME.warning
+  return '#f4f4f5'
+}

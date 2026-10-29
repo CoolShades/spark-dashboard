@@ -60,6 +60,9 @@ Live readings, polled every 2 s (the wall tile keeps the last 5 minutes of polls
     "output_va": 351,
     "capacity_va": 3000,
     "self_test": "passed",
+    "avr": null,
+    "battery_events": { "days": 30, "since": "2026-10-27T20:14:30Z", "events": [
+      { "start": "2026-10-27T20:43:00+00:00", "seconds": 5, "reason": "Automatic or explicit self test", "self_test": true } ] },
     "shutdown_battery_percent": 20,
     "shutdown_runtime_seconds": 300
   },
@@ -104,11 +107,16 @@ Live readings, polled every 2 s (the wall tile keeps the last 5 minutes of polls
   it "est.".
 - `ups.status` is one of `online`, `on_battery`, `low_battery`, `charging`,
   `offline`, `unknown`. On battery the UPS panel headlines the runtime left.
-- The UPS panel's second row is optional, each figure on its own:
-  `output_amps` with `output_va` of `capacity_va`, `battery_volts` with the last
-  `self_test` result in words (one starting "failed" is drawn red), and
-  `shutdown_battery_percent` / `shutdown_runtime_seconds`, the thresholds at
-  which the host's UPS daemon shuts it down on battery.
+- The UPS panel's second row: the mains in (`input_volts`, `input_hz`), what
+  the UPS hands the load (`output_volts`, with `avr` when its regulation is
+  boosting or trimming), and `battery_events` (optional): the spells on battery
+  in the last `days`, counted as power cuts apart from self-tests, the last one
+  under the count. Its facts line adds `battery_volts`, `battery_date` and the
+  last `self_test` result in words (one starting "failed" is drawn red); its
+  caption, `shutdown_battery_percent` / `shutdown_runtime_seconds`, the
+  thresholds at which the host's UPS daemon shuts it down on battery.
+  `output_amps`, `output_va` and `capacity_va` are optional extras no panel
+  draws today.
 - A supply reports whichever side it meters, `input_watts` or `output_watts`.
   `warning` is a condition it flags, in words.
 - Money is in the currency's major unit. `run_rate_per_month` is 30 days at the
