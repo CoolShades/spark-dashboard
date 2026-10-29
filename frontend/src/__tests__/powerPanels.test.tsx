@@ -325,12 +325,23 @@ describe('the Mains panel', () => {
 })
 
 describe('the 24 h wall chart', () => {
-  it('puts the mains and the UPS output on its own volts axis', async () => {
+  it('puts the mains under the time axis as a quality ribbon', async () => {
     respondBy({ now: NOW, history: history([[Date.UTC(2026, 9, 29, 10), 300], [Date.UTC(2026, 9, 29, 11), 900]], { output_volts: 237 }) })
     withStore(<PowerHistoryPanel />)
-    expect(await screen.findByText(/mains in/)).toBeInTheDocument()
-    expect(screen.getByText(/UPS out/)).toBeInTheDocument()
-    expect(screen.getByText(/\(230\.0–240\.0\)/)).toBeInTheDocument()
+    expect(await screen.findByLabelText('Mains quality, last 24 h')).toBeInTheDocument()
+    expect(screen.getByText('within limits all day')).toBeInTheDocument()
+    expect(screen.getByTitle(/within limits · mains in 236\.0–238\.0 V · UPS out 237\.0 V/)).toBeInTheDocument()
+  })
+
+  it('marks a minute near a limit, and time on battery', async () => {
+    const h = history([[Date.UTC(2026, 9, 29, 10), 300], [Date.UTC(2026, 9, 29, 11), 300], [Date.UTC(2026, 9, 29, 12), 300]])
+    h.points[1] = { ...h.points[1], input_volts_max: 251 }
+    h.points[2] = { ...h.points[2], on_battery: true }
+    respondBy({ now: NOW, history: h })
+    withStore(<PowerHistoryPanel />)
+    expect(await screen.findByTitle(/near a limit · mains in 236\.0–251\.0 V/)).toBeInTheDocument()
+    expect(screen.getByTitle(/on battery/)).toBeInTheDocument()
+    expect(screen.getByText('see the marks')).toBeInTheDocument()
   })
 })
 
