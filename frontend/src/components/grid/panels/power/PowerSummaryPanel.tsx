@@ -11,7 +11,7 @@ function Split({ idle, work }: { idle: number; work: number }) {
   const total = idle + work
   if (total <= 0) return <span />
   return (
-    <div className="flex h-1.5 w-full rounded-full overflow-hidden bg-zinc-700/40 self-center" aria-label="Being on and work">
+    <div className="flex h-1.5 2xl:h-2 w-full rounded-full overflow-hidden bg-zinc-700/40 self-center" aria-label="Being on and work">
       <div className="h-full" style={{ width: `${(idle / total) * 100}%`, backgroundColor: IDLE_COLOR }} />
       <div className="h-full" style={{ width: `${(work / total) * 100}%`, backgroundColor: NVIDIA_THEME.accent }} />
     </div>
@@ -51,11 +51,12 @@ export function PowerSummaryPanel() {
     e.tariff_error ? 'tariff not refreshed' : null,
   ].filter(Boolean).join(' · ')
 
-  const label = 'text-[10px] 2xl:text-xs uppercase tracking-wider text-zinc-400'
-  const num = 'text-sm 2xl:text-base min-[1920px]:text-lg font-bold font-mono tabular-nums text-zinc-100 text-right'
+  const label = 'text-[10px] 2xl:text-xs min-[1920px]:text-sm uppercase tracking-wider text-zinc-400'
+  const num = 'text-base 2xl:text-lg min-[1920px]:text-2xl font-bold font-mono tabular-nums text-zinc-100 text-right'
 
   return (
-    <div className="h-full flex flex-col justify-between gap-2 min-w-0 overflow-hidden">
+    // Grouped from the top: the ledger reads as one block, and a taller card gives it bigger figures, not gaps.
+    <div className="h-full flex flex-col gap-3 min-[1920px]:gap-4 min-w-0 overflow-hidden">
       <div className="flex flex-col min-w-0">
         <Headline value={perHour !== null ? money(perHour) : '—'} unit="/ hour" tag={<StaleBadge state={now} />} />
         {state && (
@@ -67,7 +68,7 @@ export function PowerSummaryPanel() {
         )}
       </div>
 
-      <div className="grid items-baseline gap-x-3 gap-y-1.5 min-[1920px]:gap-y-2.5 min-w-0" style={{ gridTemplateColumns: 'auto auto auto 1fr' }}>
+      <div className="grid items-baseline gap-x-3 gap-y-2 2xl:gap-y-3 min-[1920px]:gap-y-4 min-w-0" style={{ gridTemplateColumns: 'auto auto auto 1fr' }}>
         <span />
         <span className="text-[9px] text-zinc-500 text-right">kWh</span>
         <span className="text-[9px] text-zinc-500 text-right">{c === 'GBP' ? '£' : c}</span>
