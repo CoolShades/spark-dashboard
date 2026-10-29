@@ -141,8 +141,10 @@ describe('the Memory card', () => {
   it('draws a rectangle per DIMM, the hottest in the caption, and its reading on hover', async () => {
     respondBy({ host: DOC })
     withStore(<HostMemoryPanel />)
-    expect(await screen.findByLabelText('DIMM A1 49 °C')).toHaveTextContent('A1')
-    expect(screen.getByText(/2 DIMMs · hottest/)).toHaveTextContent('2 DIMMs · hottest F1 55 °C · rated to 85 °C')
+    expect(await screen.findByLabelText('DIMM A1 49 °C')).toBeInTheDocument()
+    expect(screen.getByText('A1')).toBeInTheDocument() // the slot's name beside its stick
+    expect(screen.getByText(/2 DIMMs · hottest/)).toHaveTextContent('2 DIMMs · hottest F1 55 °C')
+    expect(screen.getByLabelText('CPU socket')).toHaveTextContent('CPU54°')
     fireEvent.mouseEnter(screen.getByLabelText('DIMM F1 55 °C'))
     expect(screen.getByText('DIMM F1')).toBeInTheDocument()
     expect(screen.getByText('55 °C')).toBeInTheDocument()
@@ -228,6 +230,14 @@ describe('the Services & network card', () => {
 })
 
 describe('the host helpers', () => {
+  it('colours a temperature on the thermal scale', async () => {
+    const { thermalColor } = await import('../lib/host')
+    expect(thermalColor(20)).toBe('#2563eb')
+    expect(thermalColor(50)).toBe('#22c55e')
+    expect(thermalColor(90)).toBe('#ef4444')
+    expect(thermalColor(55)).not.toBe(thermalColor(49)) // close temperatures still look apart
+  })
+
   it('formats bytes and uptime, and judges a temperature against its limits', () => {
     expect(bytesParts(72e9)).toEqual({ value: '72.0', unit: 'GB' })
     expect(bytesParts(1966.6e9)).toEqual({ value: '2.0', unit: 'TB' })

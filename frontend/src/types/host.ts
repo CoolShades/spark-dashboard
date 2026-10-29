@@ -65,6 +65,9 @@ export interface HostDoc {
   fans: Array<{ name: string; rpm: number }>
   /** BMC voltage rails; `ok` is within ±5 % of nominal, null for a rail with no nominal in its name. */
   rails: Array<{ name: string; volts: number; nominal: number | null; ok: boolean | null }>
+  /** The DIMM slots as they sit on the board: banks top to bottom (one above the CPU socket, one below), each bank's
+   *  slots top to bottom; the sticks run horizontally. */
+  dimm_layout?: string[][]
   /** BMC discrete sensors by name: "ok", "presence_detected", ... */
   bmc_flags: Record<string, string>
   memory: Record<'total' | 'used' | 'available' | 'cached' | 'buffered' | 'committed_as' | 'commit_limit' | 'dirty' | 'swap_total' | 'swap_used', number | null>

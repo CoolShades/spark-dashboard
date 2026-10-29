@@ -59,3 +59,27 @@ export function maxOf(values: ReadonlyArray<number | null | undefined>): number 
   const v = values.filter((x): x is number => x != null)
   return v.length ? Math.max(...v) : null
 }
+
+/** The thermal scale's stops (°C, colour): blue when cool, through cyan, green, yellow and orange, to red. */
+export const THERMAL_STOPS: ReadonlyArray<readonly [number, string]> = [
+  [25, '#2563eb'],
+  [40, '#06b6d4'],
+  [50, '#22c55e'],
+  [60, '#eab308'],
+  [70, '#f97316'],
+  [80, '#ef4444'],
+]
+
+/** A temperature as a colour on the thermal scale, interpolated between its stops (clamped at the ends). */
+export function thermalColor(c: number): string {
+  const s = THERMAL_STOPS
+  if (c <= s[0][0]) return s[0][1]
+  if (c >= s[s.length - 1][0]) return s[s.length - 1][1]
+  const i = s.findIndex(([t]) => t >= c)
+  const [t0, a] = s[i - 1]
+  const [t1, b] = s[i]
+  const k = (c - t0) / (t1 - t0)
+  const p = (h: string, j: number) => parseInt(h.slice(1 + 2 * j, 3 + 2 * j), 16)
+  const ch = (j: number) => Math.round(p(a, j) + (p(b, j) - p(a, j)) * k).toString(16).padStart(2, '0')
+  return `#${ch(0)}${ch(1)}${ch(2)}`
+}
