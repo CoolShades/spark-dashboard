@@ -1,7 +1,7 @@
 import { HBar } from '@/components/gauges/HBar'
 import { POWER_POLL_MS, usePowerDocument } from '@/hooks/usePowerDocument'
 import { LOAD_THRESHOLDS, railOutOfSpec } from '@/lib/power'
-import { NVIDIA_THEME } from '@/lib/theme'
+import { NVIDIA_THEME, thresholdColor } from '@/lib/theme'
 import type { PowerNow, PowerSupply } from '@/types/power'
 import { PanelNotice } from '../PanelNotice'
 import { FactLine, PowerNotice } from './PowerParts'
@@ -68,6 +68,31 @@ export function PowerSuppliesPanel() {
                     </div>
                   )
                 })}
+              </div>
+            )}
+            {s.connectors && s.connectors.length > 0 && (
+              <div className="flex flex-col gap-0.5 min-w-0">
+                <span className="text-[9px] uppercase tracking-wider text-zinc-500" title="Each 12 V connector's current against its own over-current limit (multi-rail mode)">
+                  12 V connectors · A of OCP limit
+                </span>
+                <div className="grid grid-cols-4 gap-x-2 gap-y-1 min-w-0">
+                  {s.connectors.map((c) => {
+                    const share = c.amps !== null && c.ocp_amps ? (c.amps / c.ocp_amps) * 100 : null
+                    return (
+                      <div key={c.name} className="flex flex-col gap-0.5 min-w-0" title={`${c.name}: ${c.amps ?? '—'} A${c.ocp_amps ? ` of ${c.ocp_amps.toFixed(1)} A` : ', no OCP limit'}${c.watts !== null ? `, ${Math.round(c.watts)} W` : ''}`}>
+                        <span className="flex justify-between text-[9px] 2xl:text-[10px] font-mono tabular-nums">
+                          <span className="text-zinc-500">{c.name.replace(/^12V /, '')}</span>
+                          <span className="text-zinc-300">{c.amps !== null ? c.amps.toFixed(1) : '—'}</span>
+                        </span>
+                        <div className="h-1 w-full rounded-full overflow-hidden bg-zinc-700/40">
+                          {share !== null && (
+                            <div className="h-full" style={{ width: `${Math.min(share, 100)}%`, backgroundColor: thresholdColor(share, LOAD_THRESHOLDS.warning, LOAD_THRESHOLDS.critical) }} />
+                          )}
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
               </div>
             )}
             {s.warning && <p className="text-[10px] 2xl:text-xs text-amber-400 truncate" title={s.warning}>⚠ {s.warning}</p>}

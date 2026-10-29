@@ -41,6 +41,23 @@ export interface PowerRail {
   volts_max_24h?: number | null
 }
 
+/** One 12 V output connector of a multi-rail supply, with its own over-current limit. */
+export interface PowerConnector {
+  name: string
+  volts: number | null
+  amps: number | null
+  watts: number | null
+  /** The connector's OCP limit; null when it has none. */
+  ocp_amps: number | null
+}
+
+/** A load on the same meter that nothing measures on its own (a router on the UPS): its own slice, marked estimated. */
+export interface PowerOtherLoad {
+  name: string
+  watts: number
+  estimated?: boolean
+}
+
 export interface PowerSupply {
   name: string
   input_watts: number | null
@@ -52,6 +69,7 @@ export interface PowerSupply {
   /** A condition the supply flags, in words; null when it flags nothing. */
   warning: string | null
   rails?: PowerRail[]
+  connectors?: PowerConnector[]
 }
 
 export interface PowerEnergy {
@@ -105,6 +123,8 @@ export interface PowerNow {
   cost_per_hour: number | null
   ups: PowerUps | null
   supplies: PowerSupply[]
+  /** Loads on the wall figure besides this machine, subtracted before "system" in the wall split. */
+  other_loads?: PowerOtherLoad[]
   energy: PowerEnergy | null
   mains?: MainsLimits | null
 }

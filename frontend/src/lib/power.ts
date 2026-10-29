@@ -121,18 +121,27 @@ export function batteryColor(percent: number | null): string {
 export const LOAD_THRESHOLDS = { warning: 75, critical: 90 } as const
 
 /**
- * Splits the wall figure into the GPUs and everything else. The GPUs report
- * their own board power (after the supply), so "rest" also carries the
- * supplies' losses; and the two are read at different moments, so the rest is
- * floored at zero instead of going negative on a GPU spike.
+ * Splits the wall figure into the GPUs, the other loads on the same meter (a
+ * router on the UPS), and the system: everything else. The GPUs report their
+ * own board power (after the supply), so "system" also carries the supplies'
+ * losses; and the figures are read at different moments, so each slice is
+ * capped by what is left and the system is floored at zero instead of going
+ * negative on a GPU spike.
  */
 export function splitWall(
   totalWatts: number | null,
   gpuWatts: number | null,
-): { gpus: number; rest: number } | null {
+  otherLoads: ReadonlyArray<{ name: string; watts: number; estimated?: boolean }> = [],
+): { gpus: number; system: number; others: Array<{ name: string; watts: number; estimated: boolean }> } | null {
   if (totalWatts === null || gpuWatts === null) return null
-  const gpus = Math.min(Math.max(gpuWatts, 0), totalWatts)
-  return { gpus, rest: Math.max(totalWatts - gpus, 0) }
+  let left = totalWatts
+  const others = otherLoads.map((o) => {
+    const w = Math.min(Math.max(o.watts, 0), left)
+    left -= w
+    return { name: o.name, watts: w, estimated: Boolean(o.estimated) }
+  })
+  const gpus = Math.min(Math.max(gpuWatts, 0), left)
+  return { gpus, system: Math.max(left - gpus, 0), others }
 }
 
 /** The GPUs' summed board power from a snapshot, or null when none reports it. */

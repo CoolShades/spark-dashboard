@@ -17,7 +17,15 @@ export interface PowerDocumentState<T> {
   data: T | null
   /** When `data` was fetched (epoch ms), or null before the first success. */
   fetchedAt: number | null
+  /**
+   * The good documents of the last few minutes, oldest first (RECENT_MS), for a panel that draws its own live
+   * strip: the slow-moving history document is minute means, this is every poll.
+   */
+  recent: ReadonlyArray<{ at: number; data: T }>
 }
+
+/** How much of the poll history a document keeps for live strips. */
+export const RECENT_MS = 5 * 60_000
 
 interface Poller {
   state: PowerDocumentState<unknown>
@@ -33,11 +41,14 @@ async function poll(path: string, poller: Poller): Promise<void> {
   try {
     const resp = await fetch(`/api/power/${path}`, { headers: { Accept: 'application/json' } })
     if (resp.status === 404) {
-      next = { status: 'not-configured', data: null, fetchedAt: null }
+      next = { status: 'not-configured', data: null, fetchedAt: null, recent: [] }
     } else if (!resp.ok) {
       next = { ...poller.state, status: 'unavailable' }
     } else {
-      next = { status: 'ready', data: await resp.json(), fetchedAt: Date.now() }
+      const data: unknown = await resp.json()
+      const at = Date.now()
+      const recent = [...poller.state.recent.filter((r) => at - r.at <= RECENT_MS), { at, data }]
+      next = { status: 'ready', data, fetchedAt: at, recent }
     }
   } catch {
     next = { ...poller.state, status: 'unavailable' }
@@ -51,7 +62,7 @@ function subscribe(path: string, intervalMs: number, listener: () => void): () =
   let poller = pollers.get(path)
   if (!poller) {
     poller = {
-      state: { status: 'loading', data: null, fetchedAt: null },
+      state: { status: 'loading', data: null, fetchedAt: null, recent: [] },
       listeners: new Set(),
       timer: null,
       intervalMs,
@@ -75,7 +86,7 @@ function subscribe(path: string, intervalMs: number, listener: () => void): () =
   }
 }
 
-const INITIAL: PowerDocumentState<never> = { status: 'loading', data: null, fetchedAt: null }
+const INITIAL: PowerDocumentState<never> = { status: 'loading', data: null, fetchedAt: null, recent: [] }
 
 /**
  * One power document, re-rendering when a poll lands. `path` includes any
@@ -91,8 +102,8 @@ export function usePowerDocument<T>(path: string, intervalMs: number): PowerDocu
   return useSyncExternalStore(sub, get)
 }
 
-/** Polling intervals: live readings every 5 s; history and daily totals move slowly. */
-export const POWER_POLL_MS = { now: 5_000, history: 60_000, daily: 300_000 } as const
+/** Polling intervals: live readings every 2 s; history and daily totals move slowly. */
+export const POWER_POLL_MS = { now: 2_000, history: 60_000, daily: 300_000 } as const
 
 /** For specs: forget every poller, as if no panel had ever mounted. */
 export function resetPowerPollers(): void {

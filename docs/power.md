@@ -30,7 +30,7 @@ than showing zero.
 
 ## `GET /now`
 
-Live readings, polled every 5 s.
+Live readings, polled every 2 s (the wall tile keeps the last 5 minutes of polls for its live strip).
 
 ```json
 {
@@ -58,12 +58,14 @@ Live readings, polled every 5 s.
   },
   "supplies": [
     { "name": "PSU 1", "input_watts": 646, "output_watts": null, "capacity_watts": 1600,
-      "temperature_c": 54.2, "fan_rpm": 780, "input_volts": 233, "warning": null },
+      "temperature_c": 54.2, "fan_rpm": 780, "input_volts": 233, "warning": null,
+      "connectors": [ { "name": "12V #6", "volts": 12.03, "amps": 5.4, "watts": 64, "ocp_amps": 40.5 } ] },
     { "name": "PSU 2", "input_watts": null, "output_watts": 460, "capacity_watts": 850,
       "temperature_c": 42, "fan_rpm": 0, "input_volts": 230, "warning": null,
       "rails": [ { "name": "12V", "nominal_volts": 12, "volts": 12.06, "amps": 36.8, "watts": 436,
                    "volts_min_24h": 12.01, "volts_max_24h": 12.14 } ] }
   ],
+  "other_loads": [ { "name": "Router + switch", "watts": 25, "estimated": true } ],
   "energy": {
     "currency": "GBP",
     "unit_price": 0.2632,
@@ -103,6 +105,12 @@ Live readings, polled every 5 s.
   says the source counted it: it is paid with or without the machine.
 - `mains` is optional; without it the panels assume 230 V +10 % / -6 % and
   50 Hz +/-1 %.
+- `other_loads` (optional) are loads on the same meter as `total_watts` that
+  are not this machine (network gear on the UPS). The wall tile takes them out
+  first, then the GPUs, and calls what is left "system"; `estimated` marks a
+  figure no meter measures.
+- `connectors` (optional, per supply) are a multi-rail supply's 12 V outputs,
+  each with its own over-current limit; drawn as current against the limit.
 - `rails` (optional, per supply) are its output rails; a rail more than 5 % off
   nominal, now or in its 24 h range, is drawn red (the ATX tolerance).
 - The idle floor (optional, drives the Idle vs Work panel): `floor_watts` is

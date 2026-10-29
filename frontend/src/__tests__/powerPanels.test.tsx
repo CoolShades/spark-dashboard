@@ -79,8 +79,15 @@ const NOW: PowerNow = {
     last_transfer: 'Automatic or explicit self test',
     transfers: 1,
   },
+  other_loads: [{ name: 'Router + switch', watts: 25, estimated: true }],
   supplies: [
-    { name: 'AX1600i', input_watts: 646, output_watts: null, capacity_watts: 1600, temperature_c: 54.25, fan_rpm: 780, input_volts: 233, warning: 'output current warning' },
+    {
+      name: 'AX1600i', input_watts: 646, output_watts: null, capacity_watts: 1600, temperature_c: 54.25, fan_rpm: 780, input_volts: 233, warning: 'output current warning',
+      connectors: [
+        { name: '12V #0', volts: 12.05, amps: 0, watts: 0, ocp_amps: null },
+        { name: '12V #6', volts: 12.03, amps: 5.4, watts: 64, ocp_amps: 40.5 },
+      ],
+    },
     {
       name: 'HX850i', input_watts: null, output_watts: 460, capacity_watts: 850, temperature_c: 42, fan_rpm: 0, input_volts: 230, warning: null,
       rails: [
@@ -143,8 +150,25 @@ describe('Power panels', () => {
     expect(await screen.findByText('1,404')).toBeInTheDocument()
     expect(screen.getByText('est.')).toBeInTheDocument()
     expect(screen.getByText('1,025 W')).toBeInTheDocument()
-    expect(screen.getByText('379 W')).toBeInTheDocument()
+    expect(screen.getByText('354 W')).toBeInTheDocument()
+    expect(screen.getByText('Router + switch')).toBeInTheDocument()
+    expect(screen.getByText('~25 W')).toBeInTheDocument()
     expect(screen.getByText('AX1600i in 646 W · HX850i out 460 W')).toBeInTheDocument()
+  })
+
+  it('draw a live strip once a few polls have landed', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true })
+    try {
+      respond(200, NOW)
+      withStore(<PowerWallPanel />)
+      await screen.findByText('1,404')
+      expect(screen.queryByLabelText('Last few minutes')).toBeNull()
+      await vi.advanceTimersByTimeAsync(4_500)
+      expect(await screen.findByLabelText('Last few minutes')).toBeInTheDocument()
+      expect(screen.getByText(/AX1600i in \(metered\)/)).toBeInTheDocument()
+    } finally {
+      vi.useRealTimers()
+    }
   })
 
   it('headline the UPS state on mains, and the runtime left on battery', async () => {
@@ -184,6 +208,8 @@ describe('Power panels', () => {
     expect(screen.getByText('⚠ output current warning')).toBeInTheDocument()
     expect(screen.getByText(/fan off/)).toBeInTheDocument()
     expect(screen.getByText('12V')).toBeInTheDocument()
+    expect(screen.getByText('#6')).toBeInTheDocument()
+    expect(screen.getByText('5.4')).toBeInTheDocument()
     expect(screen.getByText('24 h 12.01–12.14')).toBeInTheDocument()
   })
 

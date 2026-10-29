@@ -108,12 +108,25 @@ describe('UPS judgements', () => {
 })
 
 describe('the wall split', () => {
-  it('is GPUs plus the rest', () => {
-    expect(splitWall(1404, 1025)).toEqual({ gpus: 1025, rest: 379 })
+  it('is GPUs plus the system', () => {
+    expect(splitWall(1404, 1025)).toEqual({ gpus: 1025, system: 379, others: [] })
+  })
+
+  it('takes the other loads on the meter out before the system', () => {
+    expect(splitWall(400, 100, [{ name: 'Router + switch', watts: 25, estimated: true }])).toEqual({
+      gpus: 100,
+      system: 275,
+      others: [{ name: 'Router + switch', watts: 25, estimated: true }],
+    })
   })
 
   it('never goes negative when the GPUs spike between two readings', () => {
-    expect(splitWall(900, 950)).toEqual({ gpus: 900, rest: 0 })
+    expect(splitWall(900, 950)).toEqual({ gpus: 900, system: 0, others: [] })
+    expect(splitWall(100, 90, [{ name: 'Router', watts: 25 }])).toEqual({
+      gpus: 75,
+      system: 0,
+      others: [{ name: 'Router', watts: 25, estimated: false }],
+    })
   })
 
   it('is unknown without both figures', () => {
