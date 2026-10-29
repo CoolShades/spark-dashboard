@@ -96,6 +96,7 @@ export const PANEL_TYPES = {
   'power-ups': { binds: 'none', title: 'UPS', size: { w: 3, h: 2 }, windowed: false },
   'power-cost': { binds: 'none', title: 'Running Cost', size: { w: 3, h: 2 }, windowed: false },
   'power-energy': { binds: 'none', title: 'Energy', size: { w: 3, h: 2 }, windowed: false },
+  'power-baseline': { binds: 'none', title: 'Idle vs Work', size: { w: 3, h: 3 }, windowed: false },
   'power-history': { binds: 'none', title: 'Power · 24 h', size: { w: 8, h: 3 }, windowed: false },
   'power-daily': { binds: 'none', title: 'Energy · 7 days', size: { w: 4, h: 3 }, windowed: false },
   'power-mains': { binds: 'none', title: 'Mains', size: { w: 6, h: 3 }, windowed: false },

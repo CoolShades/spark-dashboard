@@ -26,7 +26,7 @@ export function PowerCostPanel() {
         <PowerStat
           label="Per month"
           value={energy.run_rate_per_month !== null ? `~${money(energy.run_rate_per_month)}` : '—'}
-          sub={energy.run_rate_per_day !== null ? `${money(energy.run_rate_per_day)}/day, last 7 days` : undefined}
+          sub={energy.run_rate_per_day !== null ? `${money(energy.run_rate_per_day)}/day (7 d)` : undefined}
         />
       </div>
       <FactLine>

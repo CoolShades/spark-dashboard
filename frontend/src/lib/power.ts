@@ -44,6 +44,24 @@ export function formatUnitPrice(price: number, currency: string): string {
   return `${formatMoney(price, currency)}/kWh`
 }
 
+/** Runtime for a tight tile: "45s", "18m", "1h 12m". */
+export function formatRuntimeShort(seconds: number): string {
+  if (seconds < 60) return `${Math.max(0, Math.round(seconds))}s`
+  const minutes = Math.round(seconds / 60)
+  if (minutes < 60) return `${minutes}m`
+  const h = Math.floor(minutes / 60)
+  const m = minutes % 60
+  return m ? `${h}h ${m}m` : `${h}h`
+}
+
+/** A rail is out of tolerance beyond ±5 % of nominal (ATX: 12 V, 5 V and 3.3 V all ±5 %). */
+export function railOutOfSpec(volts: number | null, nominal: number): boolean {
+  return volts !== null && Math.abs(volts - nominal) > nominal * 0.05
+}
+
+/** Green shades for the GPUs in a stacked chart: the GPUs stay "the green part", each one still told apart. */
+export const GPU_SHADES = ['#76B900', '#4d7c00', '#a3d64f', '#2f4d00', '#c2e88a', '#5f9a00'] as const
+
 /** UPS runtime as people say it: "45 s", "18 min", "1 h 12 min". */
 export function formatRuntime(seconds: number): string {
   if (seconds < 60) return `${Math.max(0, Math.round(seconds))} s`

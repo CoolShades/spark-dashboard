@@ -6,9 +6,11 @@ import {
   formatKwh,
   formatMoney,
   formatRuntime,
+  formatRuntimeShort,
   formatUnitPrice,
   formatWattsValue,
   onBattery,
+  railOutOfSpec,
   runtimeColor,
   splitWall,
   sumGpuWatts,
@@ -49,6 +51,20 @@ describe('power formatting', () => {
     expect(formatRuntime(1200)).toBe('20 min')
     expect(formatRuntime(4320)).toBe('1 h 12 min')
     expect(formatRuntime(7200)).toBe('2 h')
+  })
+
+  it('shortens runtime for a tight tile', () => {
+    expect(formatRuntimeShort(45)).toBe('45s')
+    expect(formatRuntimeShort(1200)).toBe('20m')
+    expect(formatRuntimeShort(5820)).toBe('1h 37m')
+    expect(formatRuntimeShort(7200)).toBe('2h')
+  })
+
+  it('flags a rail beyond ±5 % of nominal', () => {
+    expect(railOutOfSpec(12.14, 12)).toBe(false)
+    expect(railOutOfSpec(11.35, 12)).toBe(true)
+    expect(railOutOfSpec(5.3, 5)).toBe(true)
+    expect(railOutOfSpec(null, 3.3)).toBe(false)
   })
 
   it('names a local date without shifting it across a time zone', () => {

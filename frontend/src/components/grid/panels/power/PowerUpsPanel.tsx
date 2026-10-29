@@ -2,6 +2,7 @@ import { POWER_POLL_MS, usePowerDocument } from '@/hooks/usePowerDocument'
 import {
   batteryColor,
   formatRuntime,
+  formatRuntimeShort,
   LOAD_THRESHOLDS,
   onBattery,
   runtimeColor,
@@ -61,7 +62,7 @@ export function PowerUpsPanel() {
         />
         <PowerStat
           label={battery ? 'Status' : 'Runtime'}
-          value={battery ? UPS_STATUS_LABEL[ups.status] : runtime !== null ? formatRuntime(runtime) : '—'}
+          value={battery ? UPS_STATUS_LABEL[ups.status] : runtime !== null ? formatRuntimeShort(runtime) : '—'}
           color={battery ? color : runtimeColor(runtime)}
         />
         <PowerStat

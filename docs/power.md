@@ -58,7 +58,11 @@ Live readings, polled every 5 s.
   },
   "supplies": [
     { "name": "PSU 1", "input_watts": 646, "output_watts": null, "capacity_watts": 1600,
-      "temperature_c": 54.2, "fan_rpm": 780, "input_volts": 233, "warning": null }
+      "temperature_c": 54.2, "fan_rpm": 780, "input_volts": 233, "warning": null },
+    { "name": "PSU 2", "input_watts": null, "output_watts": 460, "capacity_watts": 850,
+      "temperature_c": 42, "fan_rpm": 0, "input_volts": 230, "warning": null,
+      "rails": [ { "name": "12V", "nominal_volts": 12, "volts": 12.06, "amps": 36.8, "watts": 436,
+                   "volts_min_24h": 12.01, "volts_max_24h": 12.14 } ] }
   ],
   "energy": {
     "currency": "GBP",
@@ -73,7 +77,12 @@ Live readings, polled every 5 s.
     "month_cost": 4.35,
     "run_rate_kwh_per_day": 9.0,
     "run_rate_per_day": 2.37,
-    "run_rate_per_month": 71.19
+    "run_rate_per_month": 71.19,
+    "floor_watts": 296,
+    "floor_cost_per_month": 56.03,
+    "today_idle_kwh": 5.1,
+    "today_work_kwh": 3.3,
+    "today_work_cost": 0.87
   },
   "mains": { "nominal_volts": 230, "min_volts": 216.2, "max_volts": 253,
              "nominal_hz": 50, "min_hz": 49.5, "max_hz": 50.5 }
@@ -94,6 +103,13 @@ Live readings, polled every 5 s.
   says the source counted it: it is paid with or without the machine.
 - `mains` is optional; without it the panels assume 230 V +10 % / -6 % and
   50 Hz +/-1 %.
+- `rails` (optional, per supply) are its output rails; a rail more than 5 % off
+  nominal, now or in its 24 h range, is drawn red (the ATX tolerance).
+- The idle floor (optional, drives the Idle vs Work panel): `floor_watts` is
+  what the machine draws doing nothing (the reference source takes the
+  10th-percentile minute of the last 7 days), `floor_cost_per_month` that alone
+  for 30 days, and today's energy split into `today_idle_kwh` (under the floor)
+  and `today_work_kwh` / `today_work_cost` (above it).
 
 ## `GET /history?hours=N`
 
@@ -105,15 +121,19 @@ The wall figure over the last N hours, polled every minute.
   "kwh": 10.1, "cost": 2.66, "average_watts": 421, "peak_watts": 1553,
   "input_volts_min": 230.4, "input_volts_max": 240.4, "input_hz_min": 49.8, "input_hz_max": 50.1,
   "points": [
-    { "t": 1793290500000, "total_watts": 1404, "gpu_watts": 1025,
+    { "t": 1793290500000, "total_watts": 1404, "gpu_watts": 1025, "gpus_watts": [246, 260, 268, 251],
       "input_volts_min": 236.1, "input_volts_max": 236.1, "input_hz": 50.1, "on_battery": false }
-  ]
+  ],
+  "gpu_labels": ["GPU 0", "GPU 1", "GPU 2", "GPU 3"],
+  "floor_watts": 296
 }
 ```
 
 `t` is the start of each step in epoch milliseconds. `gpu_watts` is the GPUs'
-summed draw over the same step; the chart stacks it under the rest
-(`total_watts - gpu_watts`, floored at zero). Steps with `on_battery` are shaded.
+summed draw over the same step; with `gpus_watts` and `gpu_labels` the chart
+stacks each GPU instead. The rest is `total_watts` minus the GPUs, floored at
+zero (each GPU is capped so the stack never passes the wall figure). Steps with
+`on_battery` are shaded; `floor_watts`, when given, is drawn as a dashed line.
 
 ## `GET /daily?days=N`
 

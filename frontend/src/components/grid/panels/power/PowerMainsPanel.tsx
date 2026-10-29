@@ -40,20 +40,33 @@ export function PowerMainsPanel() {
 
   return (
     <div className="h-full min-h-0 flex flex-col gap-1">
-      <div className="shrink-0 grid grid-cols-4 gap-2 min-w-0">
-        <PowerStat label="Now" value={ups?.input_volts != null ? ups.input_volts.toFixed(1) : '—'} unit="V" color={voltsColor(ups?.input_volts ?? null, limits)} />
+      {/* Two figures with their 24 h range underneath: four side by side cut off below ~1600 px. */}
+      <div className="shrink-0 grid grid-cols-2 gap-2 min-w-0">
         <PowerStat
-          label="24 h"
-          value={range(h.input_volts_min, h.input_volts_max, 1)}
+          label="Voltage"
+          value={ups?.input_volts != null ? ups.input_volts.toFixed(1) : '—'}
           unit="V"
-          color={
-            (h.input_volts_min ?? limits.nominal_volts) < limits.min_volts || (h.input_volts_max ?? limits.nominal_volts) > limits.max_volts
-              ? NVIDIA_THEME.critical
-              : undefined
+          color={voltsColor(ups?.input_volts ?? null, limits)}
+          sub={
+            <span
+              style={{
+                color:
+                  (h.input_volts_min ?? limits.nominal_volts) < limits.min_volts ||
+                  (h.input_volts_max ?? limits.nominal_volts) > limits.max_volts
+                    ? NVIDIA_THEME.critical
+                    : undefined,
+              }}
+            >
+              24 h {range(h.input_volts_min, h.input_volts_max, 1)} V
+            </span>
           }
         />
-        <PowerStat label="Frequency" value={ups?.input_hz != null ? ups.input_hz.toFixed(1) : '—'} unit="Hz" />
-        <PowerStat label="24 h" value={range(h.input_hz_min, h.input_hz_max, 2)} unit="Hz" />
+        <PowerStat
+          label="Frequency"
+          value={ups?.input_hz != null ? ups.input_hz.toFixed(1) : '—'}
+          unit="Hz"
+          sub={`24 h ${range(h.input_hz_min, h.input_hz_max, 2)} Hz`}
+        />
       </div>
       <ChartContainer config={CONFIG} className="w-full flex-1 min-h-0 aspect-auto">
         <ComposedChart data={rows}>

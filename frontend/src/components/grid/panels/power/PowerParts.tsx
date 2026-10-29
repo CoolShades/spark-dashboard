@@ -74,7 +74,11 @@ export function Headline({ value, unit, color, tag }: { value: ReactNode; unit?:
   )
 }
 
-/** A small muted line of facts under a headline. */
+/**
+ * A small muted line of facts under a headline. It wraps to a second line
+ * rather than cutting off: a tariff name or a UPS's transfer reason is only
+ * useful whole, and a narrower window should cost height, not words.
+ */
 export function FactLine({ children }: { children: ReactNode }) {
-  return <p className="text-[10px] 2xl:text-xs text-zinc-500 font-mono tabular-nums truncate">{children}</p>
+  return <p className="text-[10px] 2xl:text-xs text-zinc-500 font-mono tabular-nums break-words line-clamp-2">{children}</p>
 }

@@ -41,6 +41,7 @@ import { InferenceTimelinePanel } from './panels/InferenceTimelinePanel'
 import { LogsPanel } from './panels/LogsPanel'
 import { MemoryPanel } from './panels/MemoryPanel'
 import { NetworkIoPanel } from './panels/NetworkIoPanel'
+import { PowerBaselinePanel } from './panels/power/PowerBaselinePanel'
 import { PowerCostPanel } from './panels/power/PowerCostPanel'
 import { PowerDailyPanel } from './panels/power/PowerDailyPanel'
 import { PowerEnergyPanel } from './panels/power/PowerEnergyPanel'
@@ -74,6 +75,7 @@ const PANEL_CONTENT: Partial<Record<PanelType, ComponentType<PanelContentProps>>
   'power-ups': PowerUpsPanel,
   'power-cost': PowerCostPanel,
   'power-energy': PowerEnergyPanel,
+  'power-baseline': PowerBaselinePanel,
   'power-history': PowerHistoryPanel,
   'power-daily': PowerDailyPanel,
   'power-mains': PowerMainsPanel,

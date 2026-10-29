@@ -28,6 +28,19 @@ export interface PowerUps {
   battery_date?: string | null
 }
 
+/** One output rail of a supply, for the ones that report per-rail readings. */
+export interface PowerRail {
+  /** e.g. "12V". */
+  name: string
+  nominal_volts: number
+  volts: number | null
+  amps: number | null
+  watts: number | null
+  /** The rail's voltage range over the last 24 h: a droop under load shows here first. */
+  volts_min_24h?: number | null
+  volts_max_24h?: number | null
+}
+
 export interface PowerSupply {
   name: string
   input_watts: number | null
@@ -38,6 +51,7 @@ export interface PowerSupply {
   input_volts: number | null
   /** A condition the supply flags, in words; null when it flags nothing. */
   warning: string | null
+  rails?: PowerRail[]
 }
 
 export interface PowerEnergy {
@@ -58,6 +72,16 @@ export interface PowerEnergy {
   run_rate_per_day: number | null
   /** Cost per 30 days at the recent run rate. */
   run_rate_per_month: number | null
+  /**
+   * The idle floor: what the machine draws doing nothing (the reference source uses the 10th-percentile minute
+   * of the last 7 days), and what that alone costs per 30 days. Today's energy splits into the part under it
+   * (being on) and the part above it (work).
+   */
+  floor_watts?: number | null
+  floor_cost_per_month?: number | null
+  today_idle_kwh?: number | null
+  today_work_kwh?: number | null
+  today_work_cost?: number | null
 }
 
 /** Acceptable mains limits, for shading the voltage chart. */
@@ -90,6 +114,8 @@ export interface PowerHistoryPoint {
   t: number
   total_watts: number | null
   gpu_watts: number | null
+  /** Each GPU's draw over the step, in `gpu_labels` order; optional, the chart then stacks them one by one. */
+  gpus_watts?: Array<number | null>
   input_volts_min: number | null
   input_volts_max: number | null
   input_hz: number | null
@@ -109,6 +135,10 @@ export interface PowerHistory {
   input_volts_max: number | null
   input_hz_min: number | null
   input_hz_max: number | null
+  /** Names for `points[].gpus_watts`, e.g. "GPU 0 · slot 2". */
+  gpu_labels?: string[]
+  /** The idle floor, drawn as a dashed line. */
+  floor_watts?: number | null
 }
 
 export interface PowerDay {

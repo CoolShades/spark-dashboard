@@ -34,6 +34,7 @@ describe('the panel type vocabulary', () => {
       'power-ups',
       'power-cost',
       'power-energy',
+      'power-baseline',
       'power-history',
       'power-daily',
       'power-mains',

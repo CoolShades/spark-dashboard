@@ -4,6 +4,7 @@ import type { ReactNode } from 'react'
 import { MetricsStoreContext } from '../hooks/useMetricsStore'
 import { resetPowerPollers } from '../hooks/usePowerDocument'
 import { MetricsHistoryStore } from '../lib/metricsHistoryStore'
+import { PowerBaselinePanel } from '../components/grid/panels/power/PowerBaselinePanel'
 import { PowerCostPanel } from '../components/grid/panels/power/PowerCostPanel'
 import { PowerEnergyPanel } from '../components/grid/panels/power/PowerEnergyPanel'
 import { PowerSuppliesPanel } from '../components/grid/panels/power/PowerSuppliesPanel'
@@ -80,7 +81,13 @@ const NOW: PowerNow = {
   },
   supplies: [
     { name: 'AX1600i', input_watts: 646, output_watts: null, capacity_watts: 1600, temperature_c: 54.25, fan_rpm: 780, input_volts: 233, warning: 'output current warning' },
-    { name: 'HX850i', input_watts: null, output_watts: 460, capacity_watts: 850, temperature_c: 42, fan_rpm: 0, input_volts: 230, warning: null },
+    {
+      name: 'HX850i', input_watts: null, output_watts: 460, capacity_watts: 850, temperature_c: 42, fan_rpm: 0, input_volts: 230, warning: null,
+      rails: [
+        { name: '12V', nominal_volts: 12, volts: 12.06, amps: 36.8, watts: 436, volts_min_24h: 12.01, volts_max_24h: 12.14 },
+        { name: '5V', nominal_volts: 5, volts: 5.32, amps: 1.9, watts: 9, volts_min_24h: 4.98, volts_max_24h: 5.32 },
+      ],
+    },
   ],
   energy: {
     currency: 'GBP',
@@ -96,6 +103,11 @@ const NOW: PowerNow = {
     run_rate_kwh_per_day: 9.0,
     run_rate_per_day: 2.37,
     run_rate_per_month: 71.19,
+    floor_watts: 296,
+    floor_cost_per_month: 56.03,
+    today_idle_kwh: 5.1,
+    today_work_kwh: 3.3,
+    today_work_cost: 0.87,
   },
 }
 
@@ -139,7 +151,7 @@ describe('Power panels', () => {
     respond(200, NOW)
     const { unmount } = withStore(<PowerUpsPanel />)
     expect(await screen.findByText('Online')).toBeInTheDocument()
-    expect(screen.getByText('20 min')).toBeInTheDocument()
+    expect(screen.getByText('20m')).toBeInTheDocument()
     unmount()
     resetPowerPollers()
 
@@ -171,6 +183,23 @@ describe('Power panels', () => {
     expect(screen.getByText('HX850i · out')).toBeInTheDocument()
     expect(screen.getByText('⚠ output current warning')).toBeInTheDocument()
     expect(screen.getByText(/fan off/)).toBeInTheDocument()
+    expect(screen.getByText('12V')).toBeInTheDocument()
+    expect(screen.getByText('24 h 12.01–12.14')).toBeInTheDocument()
+  })
+
+  it('split today into the idle floor and the work above it', async () => {
+    respond(200, NOW)
+    withStore(<PowerBaselinePanel />)
+    expect(await screen.findByText('296')).toBeInTheDocument()
+    expect(screen.getByText('~£56.03')).toBeInTheDocument()
+    expect(screen.getByText('87p')).toBeInTheDocument()
+    expect(screen.getByText(/\(39 %\)/)).toBeInTheDocument()
+  })
+
+  it('say the idle floor is not reported by a source without one', async () => {
+    respond(200, { ...NOW, energy: { ...NOW.energy!, floor_watts: null } })
+    withStore(<PowerBaselinePanel />)
+    expect(await screen.findByText('Idle floor not reported')).toBeInTheDocument()
   })
 
   it('share one request between panels reading the same document', async () => {
