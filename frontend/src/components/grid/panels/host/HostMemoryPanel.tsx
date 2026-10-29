@@ -23,9 +23,9 @@ function slotName(n: string): string {
  * used, page cache and free (the cache gives way to programs, so "available" is
  * used's real headroom), then what is available, the cache, swap, the memory
  * committed against the kernel's limit, the hottest DIMM, and the BMC's memory
- * training check; along the bottom, the DIMMs as the board's manual draws them
- * (horizontal sticks, four above the CPU socket and four below), each coloured
- * on the thermal scale by its temperature, its reading on hover. Used is the snapshot's; the
+ * training check; along the bottom, the DIMMs as they sit on the board turned a
+ * quarter (four either side of the CPU socket, as the source lays them out),
+ * each coloured on the thermal scale by its temperature, its reading on hover. Used is the snapshot's; the
  * rest is /host.
  */
 export function HostMemoryPanel() {
@@ -86,47 +86,41 @@ export function HostMemoryPanel() {
         <PowerStat label="Training" value={training ?? '—'} color={training === 'ok' ? NVIDIA_THEME.accent : training ? NVIDIA_THEME.critical : undefined}
           sub="BMC memory check" />
       </div>
-      {/* The board as the manual draws it: horizontal sticks, a bank above the CPU socket and one below, each stick
-          coloured on the thermal scale by its temperature (the legend under it), the socket showing Tctl. The rows share
-          whatever height the card has left; hovering a stick gives its reading. */}
+      {/* The board turned a quarter: the manual's bank above the socket (H1-E1) on the left, the one below (A1-D1) on the
+          right, each stick upright and coloured on the thermal scale by its temperature (the legend under it), the socket
+          showing Tctl. The sticks take whatever height the card has left; hovering one gives its reading. */}
       {d && d.temps.dimm.length > 0 && (() => {
         const banks = d.dimm_layout ?? [d.temps.dimm.slice(0, 4).map((x) => slotName(x.name)), d.temps.dimm.slice(4).map((x) => slotName(x.name))]
         const stick = (slot: string) => {
           const x = d.temps.dimm.find((t) => slotName(t.name) === slot)
           return (
-            <div key={slot} className="flex-1 min-h-[3px] flex min-w-0">
-              <div className="h-full flex-1 rounded-[2px] border border-black/40 cursor-default"
-                style={{ backgroundColor: x ? thermalColor(x.c) : '#27272a', boxShadow: 'inset 0 0 0 1px rgba(255,255,255,0.08)' }}
-                aria-label={x ? `DIMM ${slot} ${Math.round(x.c)} °C` : `DIMM ${slot} no reading`}
-                onMouseEnter={(e) => {
-                  if (!x) return
-                  const r = e.currentTarget.getBoundingClientRect()
-                  setHover({ name: x.name, c: x.c, at: { top: r.top, bottom: r.bottom, x: r.left + r.width / 2, align: 'center' } })
-                }} />
-            </div>
+            <div key={slot} className="w-2.5 2xl:w-3 h-full rounded-[2px] border border-black/40 cursor-default"
+              style={{ backgroundColor: x ? thermalColor(x.c) : '#27272a', boxShadow: 'inset 0 0 0 1px rgba(255,255,255,0.08)' }}
+              aria-label={x ? `DIMM ${slot} ${Math.round(x.c)} °C` : `DIMM ${slot} no reading`}
+              onMouseEnter={(e) => {
+                if (!x) return
+                const r = e.currentTarget.getBoundingClientRect()
+                setHover({ name: x.name, c: x.c, at: { top: r.top, bottom: r.bottom, x: r.left + r.width / 2, align: 'center' } })
+              }} />
           )
         }
         return (
           <div className="flex-1 min-h-0 flex flex-col gap-0.5 min-w-0 mt-1">
-            <div className="flex-1 min-h-[56px] max-h-40 flex flex-col gap-[2px] px-[12%]" aria-label="DIMMs as they sit on the board" onMouseLeave={() => setHover(null)}>
+            <div className="flex-1 min-h-[56px] max-h-40 flex items-stretch justify-center gap-4" aria-label="DIMMs as they sit on the board" onMouseLeave={() => setHover(null)}>
               {banks.map((bank, bi) => (
                 <div key={bi} className="contents">
-                  {/* One label per bank (its first and last slot): a label per stick collides when the rows are thin. */}
-                  <div className="flex-[4] min-h-[14px] flex items-stretch gap-1.5 min-w-0">
-                    <span className="w-9 shrink-0 self-center text-right text-[8px] 2xl:text-[9px] font-mono text-zinc-500 leading-none">
-                      {bank[0]}–{bank[bank.length - 1]}
-                    </span>
-                    <div className="flex-1 flex flex-col gap-[2px] min-w-0">{bank.map(stick)}</div>
+                  {/* A bank: its sticks side by side, labelled once underneath with its outer and inner slot. */}
+                  <div className="flex flex-col items-center gap-0.5 min-h-0">
+                    <div className="flex-1 min-h-0 flex gap-[3px]">{bank.map(stick)}</div>
+                    <span className="shrink-0 text-[8px] 2xl:text-[9px] font-mono text-zinc-500 leading-none">{bank[0]}–{bank[bank.length - 1]}</span>
                   </div>
                   {bi < banks.length - 1 && (
-                    <div className="flex-[3.5] min-h-[14px] flex items-center justify-center pl-10 py-[2px]">
-                      <div className="h-full aspect-[1.6] max-w-[45%] rounded-[3px] border border-zinc-600 bg-zinc-800/80 flex items-center justify-center gap-1.5"
-                        aria-label="CPU socket">
-                        <span className="text-[8px] uppercase tracking-wider text-zinc-500 leading-none">CPU</span>
-                        {d.temps.tctl != null && (
-                          <span className="text-[10px] font-mono font-medium leading-none" style={{ color: thermalColor(d.temps.tctl) }}>{Math.round(d.temps.tctl)}°</span>
-                        )}
-                      </div>
+                    <div className="self-center mb-3 h-[60%] min-h-[30px] aspect-square rounded-[3px] border border-zinc-600 bg-zinc-800/80 flex flex-col items-center justify-center gap-0.5"
+                      aria-label="CPU socket">
+                      <span className="text-[8px] uppercase tracking-wider text-zinc-500 leading-none">CPU</span>
+                      {d.temps.tctl != null && (
+                        <span className="text-[10px] font-mono font-medium leading-none" style={{ color: thermalColor(d.temps.tctl) }}>{Math.round(d.temps.tctl)}°</span>
+                      )}
                     </div>
                   )}
                 </div>
