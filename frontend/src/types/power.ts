@@ -66,6 +66,8 @@ export interface PowerSupply {
   temperature_c: number | null
   fan_rpm: number | null
   input_volts: number | null
+  /** Input current, for a supply that meters it but not its input watts: shown as amps at volts (apparent VA). */
+  input_amps?: number | null
   /** A condition the supply flags, in words; null when it flags nothing. */
   warning: string | null
   rails?: PowerRail[]

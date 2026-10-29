@@ -11,12 +11,13 @@ const SYSTEM_COLOR = '#71717a'
 const OTHER_COLORS = ['#38bdf8', '#a78bfa', '#f472b6']
 const METER_COLOR = '#e4e4e7'
 
-/** The live strip: the wall figure and the supplies' own input meters over the last few minutes, one point a poll. */
+/** The live strip: the wall figure and the supplies' own meters (input where they have one, else output) over the last
+ *  few minutes, one point a poll. The supplies update every second; the wall figure in the UPS's coarse steps. */
 function LiveStrip({ recent }: { recent: ReadonlyArray<{ at: number; data: PowerNow }> }) {
   const pts = recent.filter((r) => r.data.total_watts !== null)
   if (pts.length < 3) return null
   const metered = (d: PowerNow) => {
-    const ins = d.supplies.map((s) => s.input_watts).filter((w): w is number => w !== null)
+    const ins = d.supplies.map((s) => s.input_watts ?? s.output_watts).filter((w): w is number => w !== null)
     return ins.length ? ins.reduce((a, b) => a + b, 0) : null
   }
   const t0 = pts[0].at
@@ -34,7 +35,7 @@ function LiveStrip({ recent }: { recent: ReadonlyArray<{ at: number; data: Power
       .filter(([, w]) => w !== null)
       .map(([t, w], i) => `${i ? 'L' : 'M'}${x(t).toFixed(1)},${y(w!).toFixed(1)}`)
       .join(' ')
-  const meterNames = pts[pts.length - 1].data.supplies.filter((s) => s.input_watts !== null).map((s) => s.name)
+  const meterNames = pts[pts.length - 1].data.supplies.filter((s) => (s.input_watts ?? s.output_watts) !== null).map((s) => s.name)
   return (
     <div className="flex flex-col gap-0.5 min-w-0">
       <svg viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none" className="w-full h-8" aria-label="Last few minutes">
@@ -45,7 +46,7 @@ function LiveStrip({ recent }: { recent: ReadonlyArray<{ at: number; data: Power
       </svg>
       <span className="text-[9px] 2xl:text-[10px] text-zinc-500 font-mono truncate">
         last {Math.max(1, Math.round((t1 - t0) / 60_000))} min · <span style={{ color: NVIDIA_THEME.accent }}>wall</span>
-        {meterNames.length > 0 && <> · <span className="text-zinc-300">{meterNames.join(' + ')} in (metered)</span></>}
+        {meterNames.length > 0 && <> · <span className="text-zinc-300">{meterNames.join(' + ')} (metered)</span></>}
       </span>
     </div>
   )

@@ -26,16 +26,19 @@ export function PowerSuppliesPanel() {
   if (supplies.length === 0) return <PanelNotice>No power supplies reported</PanelNotice>
 
   return (
-    <div className="h-full flex flex-col justify-center gap-3 min-w-0 overflow-hidden">
+    // Top-aligned: a supply with rails and connectors can outgrow the box, and centring would cut its title off.
+    <div className="h-full flex flex-col justify-start gap-2 min-w-0 overflow-hidden">
       {supplies.map((s) => {
         const r = reading(s)
         // Both sides known: say so, with the efficiency they imply. One side only: the bar says which.
         const both = s.input_watts !== null && s.output_watts !== null && s.input_watts > 0
+        const va = !s.input_watts && s.input_amps != null && s.input_volts !== null ? s.input_amps * s.input_volts : null
         const facts = [
           both ? `out ${Math.round(s.output_watts!)} W · ${Math.round((s.output_watts! / s.input_watts!) * 100)} % efficient` : null,
+          va !== null ? `in ${s.input_amps!.toFixed(1)} A at ${Math.round(s.input_volts!)} V (≈${Math.round(va)} VA)` : null,
           s.temperature_c !== null ? `${s.temperature_c.toFixed(1)} °C` : null,
           s.fan_rpm !== null ? (s.fan_rpm > 0 ? `fan ${Math.round(s.fan_rpm)} rpm` : 'fan off') : null,
-          s.input_volts !== null ? `${Math.round(s.input_volts)} V in` : null,
+          s.input_volts !== null && va === null ? `${Math.round(s.input_volts)} V in` : null,
           s.capacity_watts ? `${s.capacity_watts.toLocaleString('en-GB')} W rated` : null,
         ].filter(Boolean)
         return (
@@ -78,7 +81,7 @@ export function PowerSuppliesPanel() {
                 <span className="text-[9px] uppercase tracking-wider text-zinc-500" title="Each 12 V connector's current against its own over-current limit (multi-rail mode)">
                   12 V connectors · A of OCP limit
                 </span>
-                <div className="grid grid-cols-4 gap-x-2 gap-y-1 min-w-0">
+                <div className="grid grid-cols-6 gap-x-2 gap-y-1 min-w-0">
                   {s.connectors.map((c) => {
                     const share = c.amps !== null && c.ocp_amps ? (c.amps / c.ocp_amps) * 100 : null
                     return (

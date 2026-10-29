@@ -165,7 +165,7 @@ describe('Power panels', () => {
       expect(screen.queryByLabelText('Last few minutes')).toBeNull()
       await vi.advanceTimersByTimeAsync(4_500)
       expect(await screen.findByLabelText('Last few minutes')).toBeInTheDocument()
-      expect(screen.getByText(/AX1600i in \(metered\)/)).toBeInTheDocument()
+      expect(screen.getByText(/AX1600i \+ HX850i \(metered\)/)).toBeInTheDocument()
     } finally {
       vi.useRealTimers()
     }
@@ -209,6 +209,7 @@ describe('Power panels', () => {
     expect(screen.getByText(/fan off/)).toBeInTheDocument()
     expect(screen.getByText('12V')).toBeInTheDocument()
     expect(screen.getByText(/out 600 W · 93 % efficient/)).toBeInTheDocument()
+    expect(screen.queryByText(/VA\)/)).toBeNull()
     expect(screen.getByText('#6')).toBeInTheDocument()
     expect(screen.getByText('5.4')).toBeInTheDocument()
     expect(screen.getByText('24 h 12.01–12.14')).toBeInTheDocument()
@@ -239,5 +240,19 @@ describe('Power panels', () => {
     )
     await screen.findByText('37p')
     expect(vi.mocked(fetch)).toHaveBeenCalledTimes(1)
+  })
+})
+
+describe('a supply with no input-watts meter', () => {
+  it('shows its output, and its input as amps at volts, with no efficiency', async () => {
+    respond(200, {
+      ...NOW,
+      supplies: [{ name: 'AX1600i', input_watts: null, output_watts: 282, input_amps: 1.3, capacity_watts: 1600,
+        temperature_c: 41, fan_rpm: 0, input_volts: 236, warning: null }],
+    })
+    withStore(<PowerSuppliesPanel />)
+    expect(await screen.findByText('AX1600i · out')).toBeInTheDocument()
+    expect(screen.getByText(/in 1\.3 A at 236 V \(≈307 VA\)/)).toBeInTheDocument()
+    expect(screen.queryByText(/efficient/)).toBeNull()
   })
 })
