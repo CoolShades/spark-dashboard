@@ -13,7 +13,7 @@ import { thresholdColor } from '@/lib/theme'
 import type { PowerNow } from '@/types/power'
 import { usePanelDevice } from '../../panelDevice'
 import { PanelNotice } from '../PanelNotice'
-import { FactLine, Headline, PowerNotice, PowerStat, Sparkline, StaleBadge } from './PowerParts'
+import { FactLine, Headline, PowerNotice, PowerStat, Sparkline, StaleBadge, StripFooter } from './PowerParts'
 
 /**
  * The UPS at a glance. On mains the headline is its state; on battery it is
@@ -48,7 +48,7 @@ export function PowerUpsPanel() {
 
   return (
     <div
-      className="h-full flex flex-col justify-center gap-2 min-w-0 overflow-hidden rounded"
+      className="h-full flex flex-col gap-2 min-w-0 overflow-hidden rounded"
       style={battery ? { boxShadow: `inset 0 0 0 1px ${color}55`, background: `${color}0d` } : undefined}
     >
       <div className="flex items-center gap-2 min-w-0">
@@ -85,8 +85,9 @@ export function PowerUpsPanel() {
           {age !== null && <span className={age > 30 ? 'text-amber-400' : 'text-zinc-600'}> · read {age} s ago</span>}
         </FactLine>
       )}
-      <Sparkline points={volts} color="#38bdf8" label="Mains voltage, last few minutes" />
-      {transfer && <FactLine>{transfer}</FactLine>}
+      <StripFooter caption={transfer ?? 'no transfer recorded'} title={transfer ?? undefined}>
+        <Sparkline points={volts} color="#38bdf8" label="Mains voltage, last few minutes" />
+      </StripFooter>
     </div>
   )
 }

@@ -4,7 +4,7 @@ import { formatKwh, formatMoney, formatUnitPrice, formatWattsValue } from '@/lib
 import { NVIDIA_THEME } from '@/lib/theme'
 import type { PowerHistory, PowerNow } from '@/types/power'
 import { PanelNotice } from '../PanelNotice'
-import { FactLine, Headline, PowerNotice, StaleBadge } from './PowerParts'
+import { Headline, PowerNotice, StaleBadge } from './PowerParts'
 
 const IDLE_COLOR = '#71717a'
 
@@ -85,6 +85,16 @@ export function PowerSummaryPanel() {
   const state = workW === null ? null : workW < floor! * 0.1 ? 'idle' : `${money(workNow)} of it work`
   const delta = e.today_kwh != null && e.yesterday_same_time_kwh != null ? e.today_kwh - e.yesterday_same_time_kwh : null
   const perMonthKwh = e.run_rate_kwh_per_day != null ? e.run_rate_kwh_per_day * 30 : null
+  // The tariff's name only (up to its first comma: "Octopus Flexible"); the region and the standing charge, which is
+  // shown but not counted unless the source says so, go in the tooltip.
+  const tariffName = e.tariff_label ? e.tariff_label.split(',')[0] : null
+  const tariffTip = [
+    e.tariff_label,
+    e.standing_charge_per_day !== null
+      ? `standing ${formatMoney(e.standing_charge_per_day, c)}/day ${e.include_standing_charge ? 'included' : 'not included'}`
+      : null,
+    e.tariff_error ? 'tariff not refreshed' : null,
+  ].filter(Boolean).join(' · ')
 
   const label = 'text-[10px] 2xl:text-xs uppercase tracking-wider text-zinc-400'
   const num = 'text-sm 2xl:text-base min-[1920px]:text-lg font-bold font-mono tabular-nums text-zinc-100 text-right'
@@ -97,6 +107,7 @@ export function PowerSummaryPanel() {
           <span className="text-[10px] 2xl:text-xs font-mono tabular-nums text-zinc-400 truncate">
             now: <span style={{ color: state === 'idle' ? '#a1a1aa' : NVIDIA_THEME.accent }}>{state}</span>
             {floor !== null && <span className="text-zinc-500"> · idle floor {formatWattsValue(floor)} W</span>}
+            <span className="text-zinc-500" title={tariffTip}> · {formatUnitPrice(e.unit_price, c)}{tariffName ? ` · ${tariffName}` : ''}</span>
           </span>
         )}
       </div>
@@ -158,16 +169,6 @@ export function PowerSummaryPanel() {
 
       {history.data && <CostByHour history={history.data} unit={e.unit_price} floor={floor} currency={c} />}
 
-      <div className="mt-auto" />
-      <FactLine>
-        {formatUnitPrice(e.unit_price, c)}
-        {e.tariff_label ? ` · ${e.tariff_label}` : ''}
-        {e.standing_charge_per_day !== null &&
-          (e.include_standing_charge
-            ? ` · incl. ${formatMoney(e.standing_charge_per_day, c)}/day standing`
-            : ` · standing ${formatMoney(e.standing_charge_per_day, c)}/day not included`)}
-        {e.tariff_error ? ' · tariff not refreshed' : ''}
-      </FactLine>
     </div>
   )
 }

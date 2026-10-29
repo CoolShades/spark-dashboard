@@ -5,7 +5,7 @@ import { NVIDIA_THEME } from '@/lib/theme'
 import type { PowerNow } from '@/types/power'
 import { usePanelDevice } from '../../panelDevice'
 import { PanelNotice } from '../PanelNotice'
-import { FactLine, Headline, PowerNotice, StaleBadge } from './PowerParts'
+import { FactLine, Headline, PowerNotice, StaleBadge, StripFooter } from './PowerParts'
 
 const SYSTEM_COLOR = '#71717a'
 const OTHER_COLORS = ['#38bdf8', '#a78bfa', '#f472b6']
@@ -37,18 +37,21 @@ function LiveStrip({ recent }: { recent: ReadonlyArray<{ at: number; data: Power
       .join(' ')
   const meterNames = pts[pts.length - 1].data.supplies.filter((s) => (s.input_watts ?? s.output_watts) !== null).map((s) => s.name)
   return (
-    <div className="flex flex-col gap-0.5 min-w-0">
-      <svg viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none" className="w-full h-8" aria-label="Last few minutes">
+    <StripFooter
+      caption={
+        <>
+          last {Math.max(1, Math.round((t1 - t0) / 60_000))} min · <span style={{ color: NVIDIA_THEME.accent }}>wall</span>
+          {meterNames.length > 0 && <> · <span className="text-zinc-300">{meterNames.join(' + ')} (metered)</span></>}
+        </>
+      }
+    >
+      <svg viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none" className="w-full h-6" aria-label="Last few minutes">
         <path d={path((d) => d.total_watts)} fill="none" stroke={NVIDIA_THEME.accent} strokeWidth={1.5} vectorEffect="non-scaling-stroke" />
         {meterNames.length > 0 && (
           <path d={path(metered)} fill="none" stroke={METER_COLOR} strokeOpacity={0.6} strokeWidth={1} vectorEffect="non-scaling-stroke" />
         )}
       </svg>
-      <span className="text-[9px] 2xl:text-[10px] text-zinc-500 font-mono truncate">
-        last {Math.max(1, Math.round((t1 - t0) / 60_000))} min · <span style={{ color: NVIDIA_THEME.accent }}>wall</span>
-        {meterNames.length > 0 && <> · <span className="text-zinc-300">{meterNames.join(' + ')} (metered)</span></>}
-      </span>
-    </div>
+    </StripFooter>
   )
 }
 
@@ -88,7 +91,7 @@ export function PowerWallPanel() {
     .filter(Boolean)
 
   return (
-    <div className="h-full flex flex-col justify-center gap-1.5 min-w-0 overflow-hidden">
+    <div className="h-full flex flex-col gap-1.5 min-w-0 overflow-hidden">
       <Headline
         value={formatWattsValue(total)}
         unit="W"
@@ -125,8 +128,8 @@ export function PowerWallPanel() {
           </div>
         </div>
       )}
-      <LiveStrip recent={now.recent as ReadonlyArray<{ at: number; data: PowerNow }>} />
       {readings.length > 0 && <FactLine>{readings.join(' · ')}</FactLine>}
+      <LiveStrip recent={now.recent as ReadonlyArray<{ at: number; data: PowerNow }>} />
     </div>
   )
 }

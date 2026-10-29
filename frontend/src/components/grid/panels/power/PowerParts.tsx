@@ -75,6 +75,19 @@ export function Headline({ value, unit, color, tag }: { value: ReactNode; unit?:
 }
 
 /**
+ * A card's footer: a live strip and one caption line, pinned to the bottom so
+ * the strips of neighbouring cards in a row line up.
+ */
+export function StripFooter({ children, caption, title }: { children: ReactNode; caption: ReactNode; title?: string }) {
+  return (
+    <div className="mt-auto flex flex-col gap-0.5 min-w-0">
+      {children}
+      <p className="text-[10px] 2xl:text-xs text-zinc-500 font-mono tabular-nums truncate" title={title}>{caption}</p>
+    </div>
+  )
+}
+
+/**
  * A small muted line of facts under a headline. It wraps to a second line
  * rather than cutting off: a tariff name or a UPS's transfer reason is only
  * useful whole, and a narrower window should cost height, not words.
@@ -105,7 +118,7 @@ export function Sparkline({ points, color, label }: { points: ReadonlyArray<{ at
     })
     .join(' ')
   return (
-    <svg viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none" className="w-full h-5" aria-label={label}>
+    <svg viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none" className="w-full h-6" aria-label={label}>
       <path d={d} fill="none" stroke={color} strokeWidth={1.3} vectorEffect="non-scaling-stroke" />
     </svg>
   )
