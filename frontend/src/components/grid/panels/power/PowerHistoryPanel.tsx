@@ -10,8 +10,8 @@ import { PowerNotice } from './PowerParts'
 
 const REST_COLOR = '#71717a'
 const VIN_COLOR = '#38bdf8'
-/** The voltage marks sit behind the watts at 75 % translucency, on their own axis (right). */
-const VOLT_OPACITY = 0.25
+/** The voltage marks and their axis (right) sit behind the watts at 85 % translucency. */
+const VOLT_OPACITY = 0.15
 
 /** Runs of consecutive on-battery steps, as [start, end] pairs for shading. */
 function batteryRuns(points: PowerHistory['points'], stepMs: number): Array<[number, number]> {
@@ -152,7 +152,7 @@ export function PowerHistoryPanel() {
               width={44}
               domain={vDomain}
               stroke={VIN_COLOR}
-              strokeOpacity={0.6}
+              tick={{ fill: VIN_COLOR, fillOpacity: VOLT_OPACITY }}
               fontSize={11}
               tickLine={false}
               axisLine={false}
@@ -164,17 +164,21 @@ export function PowerHistoryPanel() {
             content={
               <ChartTooltipContent
                 labelFormatter={(_, p) => formatClock(Number(p?.[0]?.payload?.t ?? 0))}
-                formatter={(value, name) => {
+                formatter={(value, name, item) => {
+                  // The tooltip's own item styling (indicator, muted label, foreground value), with each series in its
+                  // own unit: the stock rendering prints bare numbers, and a volts range as "236.1,237.6".
                   const label = (config as Record<string, { label: string }>)[String(name)]?.label ?? String(name)
                   const text = Array.isArray(value)
                     ? `${Number(value[0]).toFixed(1)}–${Number(value[1]).toFixed(1)} V`
                     : name === 'vout'
                       ? `${Number(value).toFixed(1)} V`
                       : `${formatWattsValue(Number(value))} W`
+                  const color = (item?.color as string | undefined) ?? (config as Record<string, { color: string }>)[String(name)]?.color
                   return (
-                    <div className="flex w-full justify-between gap-3">
-                      <span className="text-zinc-400">{label}</span>
-                      <span className="font-mono tabular-nums text-zinc-100">{text}</span>
+                    <div className="flex w-full items-center gap-2">
+                      <span className="h-2.5 w-2.5 shrink-0 rounded-[2px]" style={{ backgroundColor: color }} />
+                      <span className="text-muted-foreground">{label}</span>
+                      <span className="ml-auto pl-3 font-mono font-medium text-foreground tabular-nums">{text}</span>
                     </div>
                   )
                 }}
