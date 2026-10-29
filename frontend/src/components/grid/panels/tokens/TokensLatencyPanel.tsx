@@ -2,7 +2,7 @@ import { useSloSettings } from '@/hooks/useSloSettings'
 import { POWER_POLL_MS, usePowerDocument } from '@/hooks/usePowerDocument'
 import { engineKey } from '@/lib/identity'
 import { NVIDIA_THEME } from '@/lib/theme'
-import { msParts, sloColor } from '@/lib/tokens'
+import { bucketQuantile, msParts, sloColor } from '@/lib/tokens'
 import type { TokenDoc } from '@/types/tokens'
 import { usePanelDevice } from '../../panelDevice'
 import type { PanelContentProps } from '../../panelRegistry'
@@ -38,12 +38,17 @@ export function TokensLatencyPanel({ panel }: PanelContentProps) {
     itl: m?.itl_percentiles ?? null,
     e2e: m?.e2e_percentiles ?? null,
   }
-  // The 24 h figure when the source has one, else the engine's own since it started.
+  const buckets = { ttft: m?.ttft_buckets ?? null, itl: m?.itl_buckets ?? null, e2e: m?.e2e_buckets ?? null }
+  const Q = { p50: 0.5, p95: 0.95, p99: 0.99 } as const
+  // The source's last 24 h first; then the engine's live percentiles; then its whole histogram since it started
+  // (a quiet day still shows how the engine answers). The tile says which.
   const pick = (k: 'ttft' | 'itl' | 'e2e', p: 'p50' | 'p95' | 'p99'): { ms: number | null; since: string } => {
     const v = day[k]?.[p] ?? null
     if (v !== null) return { ms: v, since: '24 h' }
     const l = live[k]?.[`${p}_ms` as 'p50_ms'] ?? null
-    return { ms: l, since: l !== null ? 'since vLLM start' : '24 h' }
+    if (l !== null) return { ms: l, since: 'live' }
+    const b = bucketQuantile(buckets[k], Q[p])
+    return { ms: b, since: b !== null ? 'since vLLM start' : 'no requests yet' }
   }
   const tile = (label: string, k: 'ttft' | 'itl' | 'e2e', p: 'p50' | 'p95' | 'p99', threshold: number) => {
     const { ms, since } = pick(k, p)
@@ -79,10 +84,10 @@ export function TokensLatencyPanel({ panel }: PanelContentProps) {
         {tile('E2E p95', 'e2e', 'p95', slo.e2eMs)}
       </div>
       <div className="grid grid-cols-3 gap-2 min-w-0">
-        <PowerStat label="Queue p50" value={queue('p50').value} unit={queue('p50').unit} sub="24 h, waiting to start" />
+        <PowerStat label="Queue p50" value={queue('p50').value} unit={queue('p50').unit} sub="24 h" />
         <PowerStat label="Queue p95" value={queue('p95').value} unit={queue('p95').unit} sub="24 h" />
         <PowerStat label="TPOT" value={msParts(m?.tpot_ms).value} unit={msParts(m?.tpot_ms).unit} color={sloColor(m?.tpot_ms, slo.tpotMs)}
-          sub="per output token, live" />
+          sub="live" />
       </div>
       <SeriesStrip points={itl} color="#a78bfa" label="Inter-token latency, last few minutes"
         caption={<><span className="text-violet-400">inter-token</span> latency, last {panel.window} · SLO {slo.ttftMs} ms TTFT, {slo.itlMs} ms ITL</>} />

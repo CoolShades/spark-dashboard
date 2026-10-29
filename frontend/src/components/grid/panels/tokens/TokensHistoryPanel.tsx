@@ -106,6 +106,11 @@ export function TokensHistoryPanel() {
       <div className="shrink-0 flex items-center gap-2 mt-0.5" style={{ paddingLeft: MARGIN + AXIS_W - 18, paddingRight: MARGIN + AXIS_W }}>
         <span className="text-[9px] font-mono text-zinc-500 w-4 shrink-0" title="TTFT p95 per step against the SLO">TTFT</span>
         <div className="relative h-2 flex-1" aria-label="TTFT p95 per step against the SLO">
+          {rows.every((p) => p.ttft_p95_ms == null) && (
+            <span className="absolute inset-0 flex items-center text-[9px] font-mono text-zinc-600 whitespace-nowrap">
+              TTFT p95 per step, against the {slo.ttftMs} ms SLO, as requests finish
+            </span>
+          )}
           {rows.map((p) =>
             p.ttft_p95_ms == null ? null : (
               <span key={p.t} className="absolute inset-y-0 rounded-[1px]"

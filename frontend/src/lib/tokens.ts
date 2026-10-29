@@ -50,3 +50,27 @@ export function share(part: number | null | undefined, whole: number | null | un
   if (part == null || !whole) return null
   return Math.round((part / whole) * 100)
 }
+
+/**
+ * A percentile from an engine's own cumulative histogram (everything since it
+ * started), in milliseconds: linear inside the bucket holding the rank, as
+ * Prometheus's histogram_quantile does. Null when nothing was observed.
+ */
+export function bucketQuantile(buckets: ReadonlyArray<{ le_seconds: number; cumulative_count: number }> | null | undefined, q: number): number | null {
+  if (!buckets?.length) return null
+  const b = [...buckets].sort((x, y) => x.le_seconds - y.le_seconds)
+  const total = b[b.length - 1].cumulative_count
+  if (total <= 0) return null
+  const rank = q * total
+  let lo = 0
+  let below = 0
+  for (const { le_seconds: le, cumulative_count: n } of b) {
+    if (n >= rank) {
+      if (!Number.isFinite(le)) return lo * 1000
+      return (lo + (le - lo) * ((rank - below) / Math.max(n - below, 1e-12))) * 1000
+    }
+    lo = le
+    below = n
+  }
+  return b[b.length - 1].le_seconds * 1000
+}

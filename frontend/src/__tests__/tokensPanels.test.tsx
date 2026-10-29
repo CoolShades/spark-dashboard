@@ -155,7 +155,14 @@ describe('the Latency card', () => {
     respondBy({ tokens: { ...DOC, latency_24h_ms: {} } })
     withStore(<TokensLatencyPanel panel={card('tokens-latency')} />,
       [engine({ ttft_percentiles: { p50_ms: 180, p95_ms: 600, p99_ms: 900 } as never })])
-    expect(await screen.findByRole('group', { name: 'TTFT p95' })).toHaveTextContent('600mssince vLLM start')
+    expect(await screen.findByRole('group', { name: 'TTFT p95' })).toHaveTextContent('600mslive')
+  })
+
+  it('falls back to the engine’s whole histogram on a quiet day', async () => {
+    respondBy({ tokens: { ...DOC, latency_24h_ms: {} } })
+    const buckets = [{ le_seconds: 0.1, cumulative_count: 0 }, { le_seconds: 0.5, cumulative_count: 8 }, { le_seconds: 1, cumulative_count: 10 }]
+    withStore(<TokensLatencyPanel panel={card('tokens-latency')} />, [engine({ ttft_buckets: buckets })])
+    expect(await screen.findByRole('group', { name: 'TTFT p95' })).toHaveTextContent('875mssince vLLM start')
   })
 })
 
@@ -191,6 +198,8 @@ describe('the token ledger', () => {
     respondBy({ tokens: DOC })
     withStore(<TokensLedgerPanel />, [])
     expect(await screen.findByText('6M')).toBeInTheDocument() // all-time output
+    // The all-time column, headed with the first reading's local date.
+    expect(screen.getByText(`since ${new Date(DOC.since!).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}`)).toBeInTheDocument()
     expect(screen.getByText('738M')).toBeInTheDocument()
     expect(screen.getByRole('group', { name: 'Per 1M out' })).toHaveTextContent('£10.96work £2.61, today')
     expect(screen.getByRole('group', { name: 'Wh / 1k out' })).toHaveTextContent('41.2work 9.8, today')
@@ -198,6 +207,12 @@ describe('the token ledger', () => {
 })
 
 describe('the token helpers', () => {
+  it('reads a percentile off a cumulative histogram', async () => {
+    const { bucketQuantile } = await import('../lib/tokens')
+    expect(bucketQuantile([{ le_seconds: 0.1, cumulative_count: 5 }, { le_seconds: 0.2, cumulative_count: 10 }], 0.5)).toBeCloseTo(100)
+    expect(bucketQuantile([{ le_seconds: 0.1, cumulative_count: 0 }], 0.5)).toBeNull()
+  })
+
   it('splits counts and durations for tiles, and judges a latency against its SLO', () => {
     expect(tokenParts(1_446_188)).toEqual({ value: '1.4', unit: 'M' })
     expect(tokenParts(512)).toEqual({ value: '512', unit: '' })
