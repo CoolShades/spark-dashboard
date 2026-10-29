@@ -27,7 +27,7 @@ export function PowerSuppliesPanel() {
 
   return (
     // Top-aligned: a supply with rails and connectors can outgrow the box, and centring would cut its title off.
-    <div className="h-full flex flex-col justify-start gap-2 min-w-0 overflow-hidden">
+    <div className="h-full flex flex-col justify-start gap-1.5 min-w-0 overflow-hidden">
       {supplies.map((s) => {
         const r = reading(s)
         // Both sides known: say so, with the efficiency they imply. One side only: the bar says which.
@@ -42,7 +42,7 @@ export function PowerSuppliesPanel() {
           s.capacity_watts ? `${s.capacity_watts.toLocaleString('en-GB')} W rated` : null,
         ].filter(Boolean)
         return (
-          <div key={s.name} className="flex flex-col gap-1 min-w-0">
+          <div key={s.name} className="flex flex-col gap-0.5 min-w-0">
             {r ? (
               <HBar
                 label={`${s.name} · ${r.side}`}
@@ -76,11 +76,8 @@ export function PowerSuppliesPanel() {
               </div>
             )}
             {s.connectors && s.connectors.length > 0 && (
-              <div className="flex flex-col gap-0.5 min-w-0">
-                <span className="text-[9px] uppercase tracking-wider text-zinc-500" title="Each 12 V connector's current against its own over-current limit (multi-rail mode)">
-                  12 V connectors · A of OCP limit
-                </span>
-                <div className="grid grid-cols-6 gap-x-2 gap-y-1 min-w-0">
+              <div className="flex flex-col gap-0.5 min-w-0" title="Each 12 V connector's current (A) against its own over-current limit (multi-rail mode)">
+                <div className="grid grid-cols-6 gap-x-2 gap-y-0.5 min-w-0" aria-label="12 V connectors">
                   {s.connectors.map((c) => {
                     const share = c.amps !== null && c.ocp_amps ? (c.amps / c.ocp_amps) * 100 : null
                     return (
