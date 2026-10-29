@@ -4,9 +4,9 @@
 //! apcupsd, NUT, a vendor USB dongle or a time-series database, differently on
 //! every machine. So the operator runs (or already has) a small HTTP service
 //! that answers the JSON documents described in `docs/power.md` (the power
-//! documents, and the GPUs page's two), and points `--power-url` at it. This
-//! module only relays them to the browser: GET only, five fixed paths, bounded
-//! query parameters, a short timeout and a size cap. The source's address never reaches the browser, so a service on
+//! documents, the GPUs page's two and the Tokens page's three), and points
+//! `--power-url` at it. This module only relays them to the browser: GET only,
+//! eight fixed paths, bounded query parameters, a short timeout and a size cap. The source's address never reaches the browser, so a service on
 //! loopback stays on loopback.
 //!
 //! Without `--power-url` every power route answers 404, which the Power panels
@@ -177,6 +177,40 @@ pub async fn gpu_history(State(state): State<AppState>, Query(q): Query<HistoryQ
         .await
 }
 
+/// The Tokens page's figures: totals, latency percentiles and energy per token
+/// (docs/power.md, "Token documents").
+pub async fn tokens(State(state): State<AppState>) -> Response {
+    let Some(source) = state.power.as_deref() else {
+        return not_configured();
+    };
+    source.fetch(source.url("tokens", &[])).await
+}
+
+/// Token throughput and latency over the last N hours, in the history bounds.
+pub async fn token_history(
+    State(state): State<AppState>,
+    Query(q): Query<HistoryQuery>,
+) -> Response {
+    let Some(source) = state.power.as_deref() else {
+        return not_configured();
+    };
+    let hours = bounded(q.hours, DEFAULT_HISTORY_HOURS, MAX_HISTORY_HOURS);
+    source
+        .fetch(source.url("token-history", &[("hours", hours.to_string())]))
+        .await
+}
+
+/// Tokens per local day and hour, in the daily bounds.
+pub async fn token_daily(State(state): State<AppState>, Query(q): Query<DailyQuery>) -> Response {
+    let Some(source) = state.power.as_deref() else {
+        return not_configured();
+    };
+    let days = bounded(q.days, DEFAULT_DAILY_DAYS, MAX_DAILY_DAYS);
+    source
+        .fetch(source.url("token-daily", &[("days", days.to_string())]))
+        .await
+}
+
 pub async fn daily(State(state): State<AppState>, Query(q): Query<DailyQuery>) -> Response {
     let Some(source) = state.power.as_deref() else {
         return not_configured();
@@ -246,6 +280,13 @@ mod tests {
                 get(|| async { (StatusCode::INTERNAL_SERVER_ERROR, "boom") }),
             )
             .route("/gpus", get(|| async { r#"{"gpus":[]}"# }))
+            .route("/tokens", get(|| async { r#"{"today":{}}"# }))
+            .route(
+                "/token-daily",
+                get(|RawQuery(q): RawQuery| async move {
+                    format!(r#"{{"query":"{}"}}"#, q.unwrap_or_default())
+                }),
+            )
             .route(
                 "/gpu-history",
                 get(|RawQuery(q): RawQuery| async move {
@@ -299,6 +340,16 @@ mod tests {
             .await
             .unwrap();
         assert_eq!(gpu_history.text().await.unwrap(), r#"{"query":"hours=1"}"#);
+
+        // And the Tokens page's.
+        let tokens = reqwest::get(format!("{base}/api/power/tokens"))
+            .await
+            .unwrap();
+        assert_eq!(tokens.text().await.unwrap(), r#"{"today":{}}"#);
+        let token_daily = reqwest::get(format!("{base}/api/power/token-daily?days=99"))
+            .await
+            .unwrap();
+        assert_eq!(token_daily.text().await.unwrap(), r#"{"query":"days=31"}"#);
     }
 
     #[tokio::test]
@@ -333,7 +384,16 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let base = spawn_dashboard(None, dir.path()).await;
 
-        for path in ["now", "history", "daily", "gpus", "gpu-history"] {
+        for path in [
+            "now",
+            "history",
+            "daily",
+            "gpus",
+            "gpu-history",
+            "tokens",
+            "token-history",
+            "token-daily",
+        ] {
             let resp = reqwest::get(format!("{base}/api/power/{path}"))
                 .await
                 .unwrap();

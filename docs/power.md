@@ -246,3 +246,55 @@ every GPU in `labels` order, a summary per GPU, and the cards' own limits:
 `power_cap`, `slowdown` (hardware: thermal, power brake) and `thermal` (the
 driver's software thermal cap) are the share of the step with the clocks held
 by each. The heatmap marks a step amber for `thermal`, red for `slowdown`. `busy_hours` counts steps at 10 % load or more.
+
+## Token documents
+
+The Tokens page reads three more documents, for history the engine's own
+counters reset on every restart: `/api/power/tokens`,
+`/api/power/token-history?hours=N` (1-168, default 24) and
+`/api/power/token-daily?days=N` (1-31, default 7). The reference source keeps
+vLLM's Prometheus counters and histograms (telegraf's prometheus input) and
+works from their increases, which survive a restart. The cards still show the
+snapshot's live figures without them.
+
+### `GET /tokens`
+
+Polled every 15 s. Counts are increases over each window: `today` (since local
+midnight), `week` (the last seven local days), `all_time` (since `since`),
+`last_24h` and `yesterday_by_now` (yesterday up to this time of day).
+
+```json
+{ "at": "2026-10-29T22:06:25+00:00", "currency": "GBP", "since": "2026-10-19T23:42:00Z",
+  "today": { "output": 1446188, "prompt": 177475199, "cached": 171325440, "requests": 1997,
+             "preemptions": 0, "draft": 1477684, "accepted": 954204, "drafts": 492654 },
+  "week": { "…": "same keys" }, "all_time": { "…": "same keys" }, "last_24h": { "…": "same keys" },
+  "yesterday_by_now": { "…": "same keys" },
+  "peak_output_per_min_24h": { "tokens": 17692, "at": "2026-10-29T03:27:00+00:00" },
+  "finished_24h": { "stop": 1965, "length": 42 },
+  "latency_24h_ms": { "ttft": { "p50": 210, "p95": 840, "p99": 1900 }, "itl": { "…": "" },
+                      "e2e": { "…": "" }, "queue": { "…": "" } },
+  "energy": { "today": { "wh_per_1k": 41.2, "work_wh_per_1k": 9.8, "cost_per_1m": 10.96, "work_cost_per_1m": 2.61 },
+              "week": { "…": "same keys" } } }
+```
+
+- `cached` is prompt tokens served from the prefix cache; `draft`, `accepted`
+  and `drafts` are speculative decoding's (acceptance = accepted / draft, mean
+  acceptance length = 1 + accepted / drafts).
+- Latency percentiles are interpolated from the histograms' 24 h increases, as
+  Prometheus's `histogram_quantile` does; null until a request has finished.
+- `energy` divides the wall energy (and the part above the idle floor, `work_`)
+  by the output tokens, per 1,000 tokens and per 1,000,000 at the current
+  tariff; null under 1,000 tokens, where the figure would be all idle draw.
+
+### `GET /token-history?hours=N`
+
+Polled every minute. Five-minute steps oldest first: `output`, `prompt`,
+`cached` and `requests` in the step, the most `running` and `waiting` and the
+fullest `kv_percent`, and the step's TTFT, ITL and end-to-end p50 and p95
+(`ttft_p50_ms`, ...).
+
+### `GET /token-daily?days=N`
+
+Polled every five minutes. One row per local day, oldest first: `output`,
+`prompt`, `cached`, `requests`, `hourly_output` and `hourly_prompt` (24 values,
+null for an hour with no reading) and `coverage`.

@@ -54,6 +54,9 @@ pub fn create_router(state: AppState) -> Router {
         .route("/power/daily", get(crate::power::daily))
         .route("/power/gpus", get(crate::power::gpus))
         .route("/power/gpu-history", get(crate::power::gpu_history))
+        .route("/power/tokens", get(crate::power::tokens))
+        .route("/power/token-history", get(crate::power::token_history))
+        .route("/power/token-daily", get(crate::power::token_daily))
         // Without this, the SPA fallback below would answer a typo'd or
         // unregistered API path with the app shell and status 200 — a client bug
         // would look like success.
