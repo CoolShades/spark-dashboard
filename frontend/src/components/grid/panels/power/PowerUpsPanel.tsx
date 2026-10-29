@@ -55,7 +55,9 @@ function powerCuts(ups: PowerUps, at: number): ReactNode {
   const short = ev.since !== null && at - Date.parse(ev.since) < (ev.days - 1) * DAY_MS
   const last = cuts[cuts.length - 1]
   const test = tests[tests.length - 1]
-  const sub = last ? `last ${formatWhen(last.start)}, ~${formatRuntime(last.seconds)}` : test ? `self-test ${formatWhen(test.start)}` : 'none recorded'
+  // The day only: a tile's sub-line holds about 20 characters; the times and reasons are in the hover list.
+  const day = (iso: string) => formatWhen(iso).replace(/ \d\d:\d\d$/, '')
+  const sub = last ? `last ${day(last.start)}, ~${formatRuntime(last.seconds)}` : test ? `self-test ${day(test.start)}` : 'none recorded'
   const title = ev.events.length
     ? ev.events.map((e) => `${formatWhen(e.start)}: ~${formatRuntime(e.seconds)} on battery (${e.reason ?? 'no reason given'})`).join('\n')
     : `No time on battery ${short ? `since ${formatDate(ev.since!)}` : `in ${ev.days} days`}`

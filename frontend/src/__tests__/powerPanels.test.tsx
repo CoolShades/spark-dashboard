@@ -486,7 +486,7 @@ describe('the UPS card\'s supply and battery rows', () => {
     expect(await screen.findByRole('group', { name: 'Mains in' })).toHaveTextContent('236.1V50.1 Hz')
     expect(screen.getByRole('group', { name: 'To PSUs' })).toHaveTextContent('mains passed through')
     const cuts = screen.getByRole('group', { name: 'Power cuts' })
-    expect(cuts).toHaveTextContent(/^Power cuts1in 30 dlast 24 Oct \d\d:\d\d, ~12 s$/) // the self-test is not a cut
+    expect(cuts).toHaveTextContent('Power cuts1in 30 dlast 24 Oct, ~12 s') // the self-test is not a cut
     expect(cuts.parentElement).toHaveAttribute('title', expect.stringContaining('(Low line voltage)'))
     expect(screen.getByRole('group', { name: 'Temperature' })).toHaveTextContent('17.5°C')
     expect(screen.getByRole('group', { name: 'Battery V' })).toHaveTextContent('54.5Vself-test passed')
