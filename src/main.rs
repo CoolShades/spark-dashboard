@@ -5,6 +5,7 @@ mod config_store;
 mod deploy_files;
 mod engines;
 mod metrics;
+mod power;
 mod server;
 mod ws;
 
@@ -158,6 +159,14 @@ struct RunArgs {
     #[arg(long, env = "SPARK_DASHBOARD_PROVIDER_API_KEY")]
     provider_api_key: Option<String>,
 
+    /// Root URL of a power source for the Power panels (UPS, power supplies,
+    /// energy and cost), e.g. http://127.0.0.1:18031. The dashboard relays its
+    /// /now, /history and /daily JSON documents (docs/power.md) under
+    /// /api/power/; the URL itself never reaches the browser. Unset, the
+    /// Power panels say no source is configured.
+    #[arg(long, value_name = "URL", env = "SPARK_DASHBOARD_POWER_URL")]
+    power_url: Option<String>,
+
     /// Enable the experimental log viewer at /ws/logs (Linux only).
     ///
     /// When set, the dashboard streams container logs from the Docker daemon
@@ -291,9 +300,19 @@ async fn run_server_inner(args: RunArgs) -> Result<(), Box<dyn std::error::Error
         args.state_dir
     );
 
+    let power = match args.power_url.as_deref().filter(|u| !u.trim().is_empty()) {
+        Some(url) => {
+            let source = power::PowerSource::new(url.trim())?;
+            tracing::info!("Power panels read from the configured power source");
+            Some(Arc::new(source))
+        }
+        None => None,
+    };
+
     let app = server::create_router(server::AppState {
         metrics_tx: tx,
         config,
+        power,
     });
 
     let addr = format!("{}:{}", args.bind, args.port);

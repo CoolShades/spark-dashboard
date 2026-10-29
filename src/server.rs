@@ -26,6 +26,8 @@ const READ_ONLY_HEADER: &str = "x-spark-dashboard-read-only";
 pub struct AppState {
     pub metrics_tx: broadcast::Sender<String>,
     pub config: Arc<ConfigStore>,
+    /// The Power panels' source (`--power-url`); `None` when not configured.
+    pub power: Option<Arc<crate::power::PowerSource>>,
 }
 
 impl FromRef<AppState> for broadcast::Sender<String> {
@@ -47,6 +49,9 @@ pub fn create_router(state: AppState) -> Router {
         // is exactly one byte over so the limit is ours rather than a tower
         // default that could drift.
         .layer(DefaultBodyLimit::max(MAX_DOCUMENT_BYTES + 1))
+        .route("/power/now", get(crate::power::now))
+        .route("/power/history", get(crate::power::history))
+        .route("/power/daily", get(crate::power::daily))
         // Without this, the SPA fallback below would answer a typo'd or
         // unregistered API path with the app shell and status 200 — a client bug
         // would look like success.
@@ -248,6 +253,7 @@ mod tests {
         let state = AppState {
             metrics_tx: tx,
             config: Arc::new(ConfigStore::new(state_dir).await),
+            power: None,
         };
         let app = create_router(state);
 
