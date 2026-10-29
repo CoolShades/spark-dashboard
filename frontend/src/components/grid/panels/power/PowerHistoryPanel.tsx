@@ -78,7 +78,15 @@ export function PowerHistoryPanel() {
             tickFormatter={formatClock}
             minTickGap={60}
           />
-          <YAxis width={40} stroke={NVIDIA_THEME.chartAxis} fontSize={11} tickLine={false} axisLine={false} unit=" W" />
+          {/* Watts without a unit suffix: "1,600 W" wraps in the axis column; the tooltip and header carry the unit. */}
+          <YAxis
+            width={40}
+            stroke={NVIDIA_THEME.chartAxis}
+            fontSize={11}
+            tickLine={false}
+            axisLine={false}
+            tickFormatter={(v: number) => formatWattsValue(v)}
+          />
           <ChartTooltip
             content={<ChartTooltipContent labelFormatter={(_, p) => formatClock(Number(p?.[0]?.payload?.t ?? 0))} />}
           />
