@@ -13,7 +13,7 @@ import { thresholdColor } from '@/lib/theme'
 import type { PowerNow } from '@/types/power'
 import { usePanelDevice } from '../../panelDevice'
 import { PanelNotice } from '../PanelNotice'
-import { FactLine, Headline, PowerNotice, PowerStat, StaleBadge } from './PowerParts'
+import { FactLine, Headline, PowerNotice, PowerStat, Sparkline, StaleBadge } from './PowerParts'
 
 /**
  * The UPS at a glance. On mains the headline is its state; on battery it is
@@ -31,6 +31,12 @@ export function PowerUpsPanel() {
   const runtime = ups.runtime_seconds
   const battery = onBattery(ups.status)
   const load = ups.load_percent
+  // The UPS reports load in whole percent and runtime in whole minutes, every 5 s: at a steady draw they sit still.
+  // The reading's age and the mains voltage (0.1 V steps) are what show it is live.
+  const age = ups.updated && now.fetchedAt !== null ? Math.max(0, Math.round((now.fetchedAt - Date.parse(ups.updated)) / 1000)) : null
+  const volts = (now.recent as ReadonlyArray<{ at: number; data: PowerNow }>)
+    .map((r) => ({ at: r.at, v: r.data.ups?.input_volts ?? null }))
+    .filter((p): p is { at: number; v: number } => p.v !== null)
   const facts = [
     ups.input_volts !== null ? `in ${ups.input_volts.toFixed(1)} V` : null,
     ups.input_hz !== null ? `${ups.input_hz.toFixed(1)} Hz` : null,
@@ -73,7 +79,13 @@ export function PowerUpsPanel() {
           sub={ups.capacity_watts ? `of ${Math.round(ups.capacity_watts).toLocaleString('en-GB')} W` : undefined}
         />
       </div>
-      {facts.length > 0 && <FactLine>{facts.join(' · ')}</FactLine>}
+      {facts.length > 0 && (
+        <FactLine>
+          {facts.join(' · ')}
+          {age !== null && <span className={age > 30 ? 'text-amber-400' : 'text-zinc-600'}> · read {age} s ago</span>}
+        </FactLine>
+      )}
+      <Sparkline points={volts} color="#38bdf8" label="Mains voltage, last few minutes" />
       {transfer && <FactLine>{transfer}</FactLine>}
     </div>
   )

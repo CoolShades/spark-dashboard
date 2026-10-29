@@ -26,6 +26,8 @@ export interface PowerUps {
   last_transfer?: string | null
   transfers?: number | null
   battery_date?: string | null
+  /** When the UPS last reported (ISO), so a panel can show the reading's age. */
+  updated?: string | null
 }
 
 /** One output rail of a supply, for the ones that report per-rail readings. */
@@ -102,6 +104,15 @@ export interface PowerEnergy {
   today_idle_kwh?: number | null
   today_work_kwh?: number | null
   today_work_cost?: number | null
+  today_idle_cost?: number | null
+  /** The 30-day run rate split at the floor: the price of being on, and of the work above it. */
+  run_rate_idle_per_month?: number | null
+  run_rate_work_per_month?: number | null
+  /** Hours a day spent at the floor (recent average), and what that time alone costs per 30 days. */
+  idle_hours_per_day?: number | null
+  idle_time_cost_per_month?: number | null
+  /** Set when the live tariff could not be refreshed; the figures then use the last or fallback rates. */
+  tariff_error?: string | null
 }
 
 /** Acceptable mains limits, for shading the voltage chart. */

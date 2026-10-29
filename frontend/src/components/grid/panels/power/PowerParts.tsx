@@ -82,3 +82,31 @@ export function Headline({ value, unit, color, tag }: { value: ReactNode; unit?:
 export function FactLine({ children }: { children: ReactNode }) {
   return <p className="text-[10px] 2xl:text-xs text-zinc-500 font-mono tabular-nums break-words line-clamp-2">{children}</p>
 }
+
+/**
+ * A tiny live line from the poller's recent readings, for a panel whose figure
+ * moves too little to see: the strip shows it is being read, and how it moves.
+ */
+export function Sparkline({ points, color, label }: { points: ReadonlyArray<{ at: number; v: number }>; color: string; label: string }) {
+  if (points.length < 3) return null
+  const t0 = points[0].at
+  const t1 = points[points.length - 1].at
+  const vs = points.map((p) => p.v)
+  const lo = Math.min(...vs)
+  const hi = Math.max(...vs)
+  const pad = Math.max((hi - lo) * 0.15, 0.05)
+  const W = 300
+  const H = 28
+  const d = points
+    .map((p, i) => {
+      const x = ((p.at - t0) / Math.max(t1 - t0, 1)) * W
+      const y = H - ((p.v - (lo - pad)) / Math.max(hi - lo + 2 * pad, 1e-9)) * H
+      return `${i ? 'L' : 'M'}${x.toFixed(1)},${y.toFixed(1)}`
+    })
+    .join(' ')
+  return (
+    <svg viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none" className="w-full h-5" aria-label={label}>
+      <path d={d} fill="none" stroke={color} strokeWidth={1.3} vectorEffect="non-scaling-stroke" />
+    </svg>
+  )
+}

@@ -69,6 +69,7 @@ const NOW: PowerNow = {
     status: 'online',
     status_detail: 'ONLINE',
     load_percent: 52,
+    updated: '2026-10-29T16:11:45Z',
     output_watts: 1404,
     capacity_watts: 2700,
     battery_percent: 100,
@@ -110,6 +111,11 @@ const NOW: PowerNow = {
     run_rate_kwh_per_day: 9.0,
     run_rate_per_day: 2.37,
     run_rate_per_month: 71.19,
+    run_rate_idle_per_month: 54.0,
+    run_rate_work_per_month: 17.19,
+    idle_hours_per_day: 21.2,
+    idle_time_cost_per_month: 50.12,
+    today_idle_cost: 1.13,
     floor_watts: 296,
     floor_cost_per_month: 56.03,
     today_idle_kwh: 5.1,
@@ -185,12 +191,24 @@ describe('Power panels', () => {
     expect(screen.getByText('left')).toBeInTheDocument()
   })
 
-  it('cost the hour in pence and the month from the run rate, naming the standing charge it leaves out', async () => {
+  it('cost the hour, and split the month and today into being on and work', async () => {
     respond(200, NOW)
     withStore(<PowerCostPanel />)
     expect(await screen.findByText('37p')).toBeInTheDocument()
+    expect(screen.getByText(/of it work/)).toBeInTheDocument()
     expect(screen.getByText('~£71.19')).toBeInTheDocument()
+    expect(screen.getByText('£54.00')).toBeInTheDocument()
+    expect(screen.getByText('£17.19')).toBeInTheDocument()
+    expect(screen.getByText(/= idle £1\.13 \+ work/)).toBeInTheDocument()
+    expect(screen.getByText(/idle ~21 h\/day/)).toBeInTheDocument()
+    expect(screen.getByText('£50.12/mo')).toBeInTheDocument()
     expect(screen.getByText(/26\.32p\/kWh · standing 55p\/day not included/)).toBeInTheDocument()
+  })
+
+  it('say the machine is idle when it draws no more than its floor', async () => {
+    respond(200, { ...NOW, total_watts: 300, cost_per_hour: 0.08 })
+    withStore(<PowerCostPanel />)
+    expect(await screen.findByText('idle')).toBeInTheDocument()
   })
 
   it('compare today with yesterday at the same time', async () => {
