@@ -177,6 +177,7 @@ describe('Power panels', () => {
       await vi.advanceTimersByTimeAsync(4_500)
       expect(await screen.findByLabelText('Last few minutes')).toBeInTheDocument()
       expect(screen.getByText(/AX1600i \+ HX850i \(metered\)/)).toBeInTheDocument()
+      expect(screen.getByText(/^last \d+ min/)).toBeInTheDocument() // the live chart's caption, its window
     } finally {
       vi.useRealTimers()
     }

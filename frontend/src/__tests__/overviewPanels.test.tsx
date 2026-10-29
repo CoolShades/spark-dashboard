@@ -67,9 +67,11 @@ describe('the overview’s GPUs card', () => {
     withStore(<GpuSummaryPanel />, snapshot([gpu(0, { utilization_percent: 93, power_watts: 246 }), gpu(1)]))
     expect(await screen.findByText('✓ no faults, 24 h')).toBeInTheDocument()
     expect(screen.getByText('GPU 0 · slot 2')).toBeInTheDocument()
-    expect(screen.getByLabelText('GPU 0 load 93 %')).toBeInTheDocument()
+    const tile = screen.getByLabelText('GPU 0')
+    expect(tile).toHaveTextContent('93% load')
+    expect(tile).toHaveTextContent('246 W')
+    expect(screen.getByLabelText('GPU 0 power 70 % of its limit')).toBeInTheDocument() // 246 of 350 W
     expect(screen.getByText('266 W')).toBeInTheDocument() // board power, both cards
-    expect(screen.getByText('246 W')).toBeInTheDocument()
   })
 })
 

@@ -1,3 +1,5 @@
+import { Area, CartesianGrid, ComposedChart, Line, XAxis, YAxis } from 'recharts'
+import { ChartContainer, ChartTooltip, ChartTooltipContent } from '@/components/ui/chart'
 import { useLatestSnapshot } from '@/hooks/useMetricsStore'
 import { POWER_POLL_MS, usePowerDocument } from '@/hooks/usePowerDocument'
 import { formatWattsValue, splitWall, sumGpuWatts } from '@/lib/power'
@@ -6,53 +8,94 @@ import type { GpuMetrics } from '@/types/metrics'
 import type { PowerHistory, PowerNow } from '@/types/power'
 import { usePanelDevice } from '../../panelDevice'
 import { PanelNotice } from '../PanelNotice'
-import { FactLine, Headline, PowerNotice, PowerStat, StaleBadge, StripFooter } from './PowerParts'
+import { FactLine, Headline, PowerNotice, PowerStat, StaleBadge } from './PowerParts'
 
 const SYSTEM_COLOR = '#71717a'
 const OTHER_COLORS = ['#38bdf8', '#a78bfa', '#f472b6']
 const METER_COLOR = '#e4e4e7'
 
-/** The live strip: the wall figure and the supplies' own meters (input where they have one, else output) over the last
- *  few minutes, one point a poll. The supplies update every second; the wall figure in the UPS's coarse steps. */
-function LiveStrip({ recent }: { recent: ReadonlyArray<{ at: number; data: PowerNow }> }) {
-  const pts = recent.filter((r) => r.data.total_watts !== null)
-  if (pts.length < 3) return null
-  const metered = (d: PowerNow) => {
-    const ins = d.supplies.map((s) => s.input_watts ?? s.output_watts).filter((w): w is number => w !== null)
-    return ins.length ? ins.reduce((a, b) => a + b, 0) : null
-  }
-  const t0 = pts[0].at
-  const t1 = pts[pts.length - 1].at
-  const all = pts.flatMap((p) => [p.data.total_watts!, metered(p.data) ?? p.data.total_watts!])
-  const lo = Math.min(...all) * 0.97
-  const hi = Math.max(...all) * 1.03 || 1
-  const W = 300
-  const H = 40
-  const x = (t: number) => ((t - t0) / Math.max(t1 - t0, 1)) * W
-  const y = (w: number) => H - ((w - lo) / Math.max(hi - lo, 1)) * H
-  const path = (f: (d: PowerNow) => number | null) =>
-    pts
-      .map((p) => [p.at, f(p.data)] as const)
-      .filter(([, w]) => w !== null)
-      .map(([t, w], i) => `${i ? 'L' : 'M'}${x(t).toFixed(1)},${y(w!).toFixed(1)}`)
-      .join(' ')
-  const meterNames = pts[pts.length - 1].data.supplies.filter((s) => (s.input_watts ?? s.output_watts) !== null).map((s) => s.name)
+const SUPPLY_COLORS = ['#e4e4e7', '#a1a1aa', '#71717a']
+
+/** "23:26:19" for the live chart's tooltip. */
+function clock(t: number): string {
+  return new Date(t).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false })
+}
+
+/**
+ * The last few minutes at the wall, one point a poll, filling what the card has left: the wall figure as an area and
+ * the supplies' own meters summed as a line (input where they have one, else output), on an axis scaled to what the
+ * window holds (the UPS reads in coarse steps, the supplies every second, and both sit far above zero, so a
+ * zero-based axis left them flat along the bottom). Hovering gives the moment's wall figure and each supply's reading.
+ */
+function LiveChart({ recent }: { recent: ReadonlyArray<{ at: number; data: PowerNow }> }) {
+  const rows = recent
+    .filter((r) => r.data.total_watts !== null)
+    .map((r) => {
+      const meters = r.data.supplies.map((sp) => sp.input_watts ?? sp.output_watts)
+      const read = meters.filter((w): w is number => w !== null)
+      return { t: r.at, wall: r.data.total_watts, metered: read.length ? read.reduce((a, b) => a + b, 0) : null, supplies: r.data.supplies }
+    })
+  if (rows.length < 3) return <div className="flex-1 min-h-0" />
+  const t0 = rows[0].t
+  const t1 = rows[rows.length - 1].t
+  const values = rows.flatMap((r) => [r.wall, r.metered]).filter((v): v is number => v !== null)
+  const lo = Math.min(...values)
+  const hi = Math.max(...values)
+  const pad = Math.max(10, (hi - lo) * 0.2)
+  const names = rows[rows.length - 1].supplies.filter((sp) => (sp.input_watts ?? sp.output_watts) !== null).map((sp) => sp.name)
   return (
-    <StripFooter
-      caption={
-        <>
-          last {Math.max(1, Math.round((t1 - t0) / 60_000))} min · <span style={{ color: NVIDIA_THEME.accent }}>wall</span>
-          {meterNames.length > 0 && <> · <span className="text-zinc-300">{meterNames.join(' + ')} (metered)</span></>}
-        </>
-      }
-    >
-      <svg viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none" className="w-full h-6" aria-label="Last few minutes">
-        <path d={path((d) => d.total_watts)} fill="none" stroke={NVIDIA_THEME.accent} strokeWidth={1.5} vectorEffect="non-scaling-stroke" />
-        {meterNames.length > 0 && (
-          <path d={path(metered)} fill="none" stroke={METER_COLOR} strokeOpacity={0.6} strokeWidth={1} vectorEffect="non-scaling-stroke" />
-        )}
-      </svg>
-    </StripFooter>
+    <div className="flex-1 min-h-[56px] flex flex-col min-w-0" aria-label="Last few minutes">
+      <ChartContainer config={{ wall: { label: 'Wall', color: NVIDIA_THEME.accent }, metered: { label: 'Supplies', color: METER_COLOR } }}
+        className="w-full flex-1 min-h-0 aspect-auto">
+        <ComposedChart data={rows} margin={{ top: 4, right: 4, bottom: 0, left: 0 }}>
+          <CartesianGrid stroke={NVIDIA_THEME.chartGrid} strokeDasharray="3 3" vertical={false} />
+          <XAxis dataKey="t" type="number" domain={['dataMin', 'dataMax']} hide />
+          <YAxis width={34} stroke={NVIDIA_THEME.chartAxis} fontSize={10} tickLine={false} axisLine={false} tickCount={3}
+            domain={[Math.max(0, Math.floor((lo - pad) / 10) * 10), Math.ceil((hi + pad) / 10) * 10]}
+            tickFormatter={(v: number) => formatWattsValue(v)} allowDecimals={false} />
+          <ChartTooltip
+            content={
+              <ChartTooltipContent
+                labelFormatter={(_, p) => clock(Number(p?.[0]?.payload?.t ?? 0))}
+                formatter={(value, name, item, index) => {
+                  const line = (color: string, label: string, text: string) => (
+                    <div className="flex w-full items-center gap-2">
+                      <span className="h-2.5 w-2.5 shrink-0 rounded-[2px]" style={{ backgroundColor: color }} />
+                      <span className="text-muted-foreground">{label}</span>
+                      <span className="ml-auto pl-3 font-mono font-medium text-foreground tabular-nums">{text}</span>
+                    </div>
+                  )
+                  const main = name === 'wall'
+                    ? line(NVIDIA_THEME.accent, 'Wall (est.)', `${formatWattsValue(Number(value))} W`)
+                    : line(METER_COLOR, 'Supplies, metered', `${formatWattsValue(Number(value))} W`)
+                  if (index !== 1) return main
+                  const row = item?.payload as (typeof rows)[number]
+                  return (
+                    <div className="grid w-full gap-1.5">
+                      {main}
+                      <div className="grid gap-1 border-t border-border/50 pt-1.5">
+                        {row.supplies.map((sp, k) => {
+                          const w = sp.input_watts ?? sp.output_watts
+                          return w === null ? null : line(SUPPLY_COLORS[k % SUPPLY_COLORS.length], `${sp.name} ${sp.input_watts !== null ? 'in' : 'out'}`, `${formatWattsValue(w)} W`)
+                        })}
+                      </div>
+                    </div>
+                  )
+                }}
+              />
+            }
+          />
+          <Area dataKey="wall" type="stepAfter" stroke={NVIDIA_THEME.accent} fill={NVIDIA_THEME.accent} fillOpacity={0.15}
+            strokeWidth={1.5} isAnimationActive={false} connectNulls />
+          <Line dataKey="metered" type="monotone" stroke={METER_COLOR} strokeOpacity={0.7} strokeWidth={1.1} dot={false}
+            isAnimationActive={false} connectNulls />
+        </ComposedChart>
+      </ChartContainer>
+      <p className="shrink-0 text-[10px] 2xl:text-xs text-zinc-500 font-mono tabular-nums truncate">
+        last {Math.max(1, Math.round((t1 - t0) / 60_000))} min · <span style={{ color: NVIDIA_THEME.accent }}>wall</span>
+        {names.length > 0 && <> · <span className="text-zinc-300">{names.join(' + ')} (metered)</span></>}
+      </p>
+    </div>
   )
 }
 
@@ -90,7 +133,8 @@ function GpuRow({ gpus, labels }: { gpus: ReadonlyArray<GpuMetrics>; labels: Rea
  * NVML reading, so that slice moves every second), the other loads on the same
  * meter (a router on the UPS, estimated by the source), and the system: CPU,
  * memory, disks, fans and the supplies' losses. Then the GPU slice card by
- * card, and a live strip of the last few minutes, polled every 2 s.
+ * card, and a live chart of the last few minutes, polled every 2 s, scaled to
+ * what it holds, with each moment's readings on hover.
  */
 export function PowerWallPanel() {
   const now = usePowerDocument<PowerNow>('now', POWER_POLL_MS.now)
@@ -163,7 +207,7 @@ export function PowerWallPanel() {
       <div className="mt-1.5">
         <GpuRow gpus={snapshot?.gpus ?? []} labels={history.data?.gpu_labels ?? []} />
       </div>
-      <LiveStrip recent={now.recent as ReadonlyArray<{ at: number; data: PowerNow }>} />
+      <LiveChart recent={now.recent as ReadonlyArray<{ at: number; data: PowerNow }>} />
     </div>
   )
 }
