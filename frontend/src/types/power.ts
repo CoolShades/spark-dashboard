@@ -152,6 +152,8 @@ export interface PowerHistoryPoint {
   input_volts_min: number | null
   input_volts_max: number | null
   input_hz: number | null
+  /** What the UPS hands the load over the step: equal to the input while it passes mains through. */
+  output_volts?: number | null
   on_battery: boolean
 }
 

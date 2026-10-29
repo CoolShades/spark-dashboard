@@ -48,6 +48,7 @@ import { PowerEnergyPanel } from './panels/power/PowerEnergyPanel'
 import { PowerHistoryPanel } from './panels/power/PowerHistoryPanel'
 import { PowerMainsPanel } from './panels/power/PowerMainsPanel'
 import { PowerSuppliesPanel } from './panels/power/PowerSuppliesPanel'
+import { PowerSummaryPanel } from './panels/power/PowerSummaryPanel'
 import { PowerUpsPanel } from './panels/power/PowerUpsPanel'
 import { PowerWallPanel } from './panels/power/PowerWallPanel'
 
@@ -76,6 +77,7 @@ const PANEL_CONTENT: Partial<Record<PanelType, ComponentType<PanelContentProps>>
   'power-cost': PowerCostPanel,
   'power-energy': PowerEnergyPanel,
   'power-baseline': PowerBaselinePanel,
+  'power-summary': PowerSummaryPanel,
   'power-history': PowerHistoryPanel,
   'power-daily': PowerDailyPanel,
   'power-mains': PowerMainsPanel,

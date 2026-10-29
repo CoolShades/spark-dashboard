@@ -8,10 +8,12 @@ import { PowerBaselinePanel } from '../components/grid/panels/power/PowerBaselin
 import { PowerCostPanel } from '../components/grid/panels/power/PowerCostPanel'
 import { PowerEnergyPanel } from '../components/grid/panels/power/PowerEnergyPanel'
 import { PowerSuppliesPanel } from '../components/grid/panels/power/PowerSuppliesPanel'
+import { PowerSummaryPanel } from '../components/grid/panels/power/PowerSummaryPanel'
+import { PowerMainsPanel } from '../components/grid/panels/power/PowerMainsPanel'
 import { PowerUpsPanel } from '../components/grid/panels/power/PowerUpsPanel'
 import { PowerWallPanel } from '../components/grid/panels/power/PowerWallPanel'
 import type { GpuMetrics, MetricsSnapshot } from '../types/metrics'
-import type { PowerNow } from '../types/power'
+import type { PowerHistory, PowerNow } from '../types/power'
 
 function gpu(index: number, watts: number): GpuMetrics {
   return {
@@ -272,5 +274,50 @@ describe('a supply with no input-watts meter', () => {
     expect(await screen.findByText('AX1600i · out')).toBeInTheDocument()
     expect(screen.getByText(/in 1\.3 A at 236 V \(≈307 VA\)/)).toBeInTheDocument()
     expect(screen.queryByText(/efficient/)).toBeNull()
+  })
+})
+
+
+/** Answers each power document by its path: /api/power/now, /api/power/history?..., /api/power/daily?... */
+function respondBy(docs: Record<string, unknown>) {
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(async (url: string) => {
+      const key = Object.keys(docs).find((k) => String(url).includes(`/api/power/${k}`))
+      return key ? new Response(JSON.stringify(docs[key]), { status: 200 }) : new Response('nope', { status: 404 })
+    }),
+  )
+}
+
+function history(points: Array<[number, number]>, extra: Partial<PowerHistory['points'][number]> = {}): PowerHistory {
+  return {
+    hours: 24, step_seconds: 3600, currency: 'GBP', kwh: 1, cost: 0.27, average_watts: 400, peak_watts: 900,
+    input_volts_min: 230, input_volts_max: 240, input_hz_min: 49.9, input_hz_max: 50.1,
+    points: points.map(([t, w]) => ({ t, total_watts: w, gpu_watts: 0, input_volts_min: 236, input_volts_max: 238,
+      input_hz: 50, on_battery: false, ...extra })),
+  }
+}
+
+describe('the Energy & Cost ledger', () => {
+  it('puts each period on one row, kWh and money side by side, split at the idle floor', async () => {
+    respondBy({ now: NOW, history: history([[Date.UTC(2026, 9, 29, 10), 300], [Date.UTC(2026, 9, 29, 11), 900]]) })
+    withStore(<PowerSummaryPanel />)
+    expect(await screen.findByText('37p')).toBeInTheDocument()
+    expect(screen.getByText('today')).toBeInTheDocument()
+    expect(screen.getByText('per 30 d')).toBeInTheDocument()
+    expect(screen.getByText('~£71.19')).toBeInTheDocument()
+    expect(screen.getByText('270')).toBeInTheDocument() // 9.0 kWh a day x 30
+    expect(screen.getByText(/being on £54\.00 \+ work/)).toBeInTheDocument()
+    expect(screen.getByText(/2\.7 kWh vs yesterday by now/)).toBeInTheDocument()
+    expect(screen.getByText('£50.12/mo')).toBeInTheDocument()
+    expect(await screen.findByLabelText('Cost by hour')).toBeInTheDocument()
+  })
+})
+
+describe('the Mains panel', () => {
+  it('draws what the UPS hands the PSUs when the source reports it', async () => {
+    respondBy({ now: NOW, history: history([[Date.UTC(2026, 9, 29, 10), 300], [Date.UTC(2026, 9, 29, 11), 300]], { output_volts: 237 }) })
+    withStore(<PowerMainsPanel />)
+    expect(await screen.findByText('UPS out → PSUs')).toBeInTheDocument()
   })
 })
