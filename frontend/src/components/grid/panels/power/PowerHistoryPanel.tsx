@@ -10,8 +10,8 @@ import { PowerNotice } from './PowerParts'
 
 const REST_COLOR = '#71717a'
 const VIN_COLOR = '#38bdf8'
-/** The voltage marks and their axis (right) sit behind the watts at 85 % translucency. */
-const VOLT_OPACITY = 0.15
+/** The voltage marks and their axis (right) sit behind the watts at 90 % translucency. */
+const VOLT_OPACITY = 0.1
 
 /** Runs of consecutive on-battery steps, as [start, end] pairs for shading. */
 function batteryRuns(points: PowerHistory['points'], stepMs: number): Array<[number, number]> {

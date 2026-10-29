@@ -11,6 +11,7 @@ import { PowerSuppliesPanel } from '../components/grid/panels/power/PowerSupplie
 import { PowerSummaryPanel } from '../components/grid/panels/power/PowerSummaryPanel'
 import { PowerMainsPanel } from '../components/grid/panels/power/PowerMainsPanel'
 import { PowerHistoryPanel } from '../components/grid/panels/power/PowerHistoryPanel'
+import { PowerDailyPanel } from '../components/grid/panels/power/PowerDailyPanel'
 import { PowerUpsPanel } from '../components/grid/panels/power/PowerUpsPanel'
 import { PowerWallPanel } from '../components/grid/panels/power/PowerWallPanel'
 import type { GpuMetrics, MetricsSnapshot } from '../types/metrics'
@@ -310,7 +311,8 @@ describe('the Energy & Cost ledger', () => {
     expect(screen.getByText(/being on £54\.00 \+ work/)).toBeInTheDocument()
     expect(screen.getByText(/2\.7 kWh vs yesterday by now/)).toBeInTheDocument()
     expect(screen.getByText('£50.12/mo')).toBeInTheDocument()
-    expect(await screen.findByLabelText('Cost by hour')).toBeInTheDocument()
+    expect(await screen.findByText('cost by hour · last 24 h')).toBeInTheDocument()
+    expect(screen.getByText(/avg .*\/h · peak .*\/h/)).toBeInTheDocument()
   })
 })
 
@@ -339,5 +341,27 @@ describe('a supply flagging a condition', () => {
     const icon = await screen.findByRole('img', { name: 'output current warning' })
     expect(icon).toHaveAttribute('title', 'output current warning')
     expect(screen.queryByText('⚠ output current warning')).toBeNull()
+  })
+})
+
+describe('the 7-day heatmap', () => {
+  it('draws each day by the hour, with its energy split and cost', async () => {
+    const hourly = Array.from({ length: 24 }, (_, h) => (h >= 1 && h <= 4 ? 900 : 300))
+    respondBy({
+      now: NOW,
+      daily: {
+        currency: 'GBP',
+        days: [
+          { date: '2026-10-28', kwh: 7.37, idle_kwh: 7.1, work_kwh: 0.27, cost: 1.96, average_watts: 307, peak_watts: 1280, coverage: 1, gpu_kwh: 2.05, hourly_watts: hourly },
+          { date: '2026-10-29', kwh: 8.8, idle_kwh: 5.5, work_kwh: 3.3, cost: 2.34, average_watts: 466, peak_watts: 1553, coverage: 1, hourly_watts: [...hourly.slice(0, 19), null, null, null, null, null] },
+        ],
+      },
+    })
+    withStore(<PowerDailyPanel />)
+    expect(await screen.findByLabelText('Wed 28 by hour')).toBeInTheDocument()
+    expect(screen.getByTitle('Wed 28 02:00–03:00 · 900 W average')).toBeInTheDocument()
+    expect(screen.getByTitle('Thu 29 20:00–21:00 · no reading')).toBeInTheDocument()
+    expect(screen.getByText('£2.34')).toBeInTheDocument()
+    expect(screen.getByText(/16\.2 kWh/)).toBeInTheDocument()
   })
 })

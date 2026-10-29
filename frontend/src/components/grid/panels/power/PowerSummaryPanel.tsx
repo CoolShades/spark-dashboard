@@ -1,4 +1,6 @@
 import { useMemo } from 'react'
+import { Bar, BarChart, CartesianGrid, Cell, ReferenceLine, XAxis, YAxis } from 'recharts'
+import { ChartContainer, ChartTooltip, ChartTooltipContent } from '@/components/ui/chart'
 import { POWER_POLL_MS, usePowerDocument } from '@/hooks/usePowerDocument'
 import { formatKwh, formatMoney, formatUnitPrice, formatWattsValue } from '@/lib/power'
 import { NVIDIA_THEME } from '@/lib/theme'
@@ -35,29 +37,75 @@ function CostByHour({ history, unit, floor, currency }: { history: PowerHistory;
       h.work += Math.max(0, p.total_watts - f) * kwh * unit
       byHour.set(key, h)
     }
-    return [...byHour.values()].sort((a, b) => a.t - b.t).slice(-24)
+    return [...byHour.values()].sort((x, y) => x.t - y.t).slice(-24).map((h) => ({ ...h, total: h.idle + h.work }))
   }, [history, unit, floor])
   if (hours.length < 2) return null
-  const top = Math.max(...hours.map((h) => h.idle + h.work), 1e-9)
+  const full = hours.slice(0, -1)                      // the current hour is still filling: it would drag the average down
+  const avg = full.reduce((s, h) => s + h.total, 0) / Math.max(full.length, 1)
+  const peak = Math.max(...hours.map((h) => h.total))
+  const lastT = hours[hours.length - 1].t
   const hh = (t: number) => new Date(t).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', hour12: false })
+  const config = {
+    idle: { label: 'Being on', color: IDLE_COLOR },
+    work: { label: 'Work', color: NVIDIA_THEME.accent },
+  }
   return (
     // At most ~40 % of the card: on a tall panel the ledger is the point, the hours are the texture under it.
-    <div className="flex flex-col gap-0.5 min-w-0 flex-1 min-h-[2.5rem] max-h-[40%]">
-      <span className="text-[9px] 2xl:text-[10px] uppercase tracking-wider text-zinc-500">cost by hour · last 24 h</span>
-      <div className="flex items-end gap-px flex-1 min-h-0" aria-label="Cost by hour">
-        {hours.map((h) => (
-          <div key={h.t} className="flex-1 flex flex-col justify-end h-full min-w-0"
-            title={`${hh(h.t)}: ${formatMoney(h.idle + h.work, currency)} (idle ${formatMoney(h.idle, currency)}, work ${formatMoney(h.work, currency)})`}>
-            <div style={{ height: `${(h.work / top) * 100}%`, backgroundColor: NVIDIA_THEME.accent }} className="rounded-t-[1px]" />
-            <div style={{ height: `${(h.idle / top) * 100}%`, backgroundColor: IDLE_COLOR }} />
-          </div>
-        ))}
+    <div className="flex flex-col gap-0.5 min-w-0 flex-1 min-h-[3rem] max-h-[40%]">
+      <div className="flex items-baseline justify-between text-[9px] 2xl:text-[10px] uppercase tracking-wider text-zinc-500">
+        <span>cost by hour · last 24 h</span>
+        <span className="normal-case tracking-normal font-mono">avg {formatMoney(avg, currency)}/h · peak {formatMoney(peak, currency)}/h</span>
       </div>
-      <div className="flex justify-between text-[9px] font-mono text-zinc-600">
-        <span>{hh(hours[0].t)}</span>
-        <span>peak {formatMoney(top, currency)}/h</span>
-        <span>{hh(hours[hours.length - 1].t)}</span>
-      </div>
+      <ChartContainer config={config} className="w-full flex-1 min-h-0 aspect-auto">
+        <BarChart data={hours} barCategoryGap="22%" margin={{ top: 4, right: 0, bottom: 0, left: 0 }}>
+          <defs>
+            <linearGradient id="cost-work" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor="#a3e635" stopOpacity={0.95} />
+              <stop offset="100%" stopColor={NVIDIA_THEME.accent} stopOpacity={0.55} />
+            </linearGradient>
+          </defs>
+          <CartesianGrid stroke={NVIDIA_THEME.chartGrid} strokeDasharray="3 3" vertical={false} />
+          <XAxis
+            dataKey="t"
+            stroke={NVIDIA_THEME.chartAxis}
+            fontSize={10}
+            tickLine={false}
+            axisLine={false}
+            tickFormatter={(t: number) => hh(t)}
+            interval="preserveStartEnd"
+            minTickGap={36}
+          />
+          <YAxis hide domain={[0, (max: number) => max * 1.08]} />
+          <ChartTooltip
+            cursor={{ fill: 'rgba(255,255,255,0.04)' }}
+            content={
+              <ChartTooltipContent
+                labelFormatter={(_, p) => {
+                  const t = Number(p?.[0]?.payload?.t ?? 0)
+                  return `${hh(t)}–${hh(t + 3_600_000)}${t === lastT ? ' (so far)' : ''}`
+                }}
+                formatter={(value, name, item) => (
+                  <div className="flex w-full items-center gap-2">
+                    <span className="h-2.5 w-2.5 shrink-0 rounded-[2px]" style={{ backgroundColor: name === 'work' ? NVIDIA_THEME.accent : IDLE_COLOR }} />
+                    <span className="text-muted-foreground">{name === 'work' ? 'Work' : 'Being on'}</span>
+                    <span className="ml-auto pl-3 font-mono font-medium text-foreground tabular-nums">
+                      {formatMoney(Number(value), currency)}
+                      {name === 'work' && item?.payload ? ` · ${formatMoney(Number(item.payload.total), currency)} total` : ''}
+                    </span>
+                  </div>
+                )}
+              />
+            }
+          />
+          <ReferenceLine y={avg} stroke="#a1a1aa" strokeOpacity={0.5} strokeDasharray="3 3" />
+          <Bar dataKey="idle" stackId="c" fill={IDLE_COLOR} fillOpacity={0.45} isAnimationActive={false}>
+            {hours.map((h) => <Cell key={h.t} fillOpacity={h.t === lastT ? 0.25 : 0.45} />)}
+          </Bar>
+          <Bar dataKey="work" stackId="c" fill="url(#cost-work)" radius={[3, 3, 0, 0]} isAnimationActive={false}>
+            {hours.map((h) => <Cell key={h.t} fillOpacity={h.t === lastT ? 0.5 : 1} />)}
+          </Bar>
+        </BarChart>
+      </ChartContainer>
     </div>
   )
 }

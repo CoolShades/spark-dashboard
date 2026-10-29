@@ -186,6 +186,11 @@ export interface PowerDay {
   peak_watts: number | null
   /** Share of the day's minutes with a reading, 0-1 (today: of the minutes so far). */
   coverage: number
+  /** The day split at the idle floor (the price of being on, and the work above it). */
+  idle_kwh?: number | null
+  work_kwh?: number | null
+  /** Mean wall W for each local clock hour 0-23; null for an hour with no reading. */
+  hourly_watts?: Array<number | null>
 }
 
 export interface PowerDaily {
