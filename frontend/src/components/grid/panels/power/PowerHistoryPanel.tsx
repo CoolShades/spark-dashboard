@@ -156,7 +156,8 @@ export function PowerHistoryPanel() {
               fontSize={11}
               tickLine={false}
               axisLine={false}
-              tickFormatter={(v: number) => `${Math.round(v)} V`}
+              // No space before the unit: recharts wraps a tick at a space, and "245 V" became two lines.
+              tickFormatter={(v: number) => `${Math.round(v)}V`}
             />
           )}
           <ChartTooltip
