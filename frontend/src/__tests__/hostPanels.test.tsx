@@ -122,19 +122,30 @@ describe('the CPU card', () => {
     expect(screen.getByRole('group', { name: 'Tctl' })).toHaveTextContent('54°Chottest CCD 51')
     expect(screen.getByRole('group', { name: 'Clock' })).toHaveTextContent('3.97GHzmax 4.29')
     expect(screen.getByRole('group', { name: 'Load 1 m' })).toHaveTextContent('0.855 m 1.75 · 15 m 2.00')
-    expect(screen.getByText(/64 threads · up 2 d 2 h/)).toBeInTheDocument()
+    expect(screen.getByText('up 2 d 2 h')).toBeInTheDocument() // a pill beside the load
+    expect(screen.getByText('AMD Ryzen Threadripper 3970X · 64 threads')).toBeInTheDocument()
   })
 })
 
 describe('the Memory card', () => {
   it('splits used, cache and free, and gives the commit, swap, DIMMs and the BMC check', async () => {
     respondBy({ host: DOC })
-    withStore(<HostMemoryPanel panel={card('host-memory')} />)
+    withStore(<HostMemoryPanel />)
     expect(await screen.findByRole('group', { name: 'Committed' })).toHaveTextContent('126GBof 144 GB limit')
     expect(screen.getByText('72.0')).toBeInTheDocument()
     expect(screen.getByText('27 %')).toBeInTheDocument()
     expect(screen.getByRole('group', { name: 'DIMMs' })).toHaveTextContent('55°Chottest of 2')
     expect(screen.getByRole('group', { name: 'Training' })).toHaveTextContent('okBMC memory check')
+  })
+
+  it('draws a rectangle per DIMM, the hottest in the caption, and its reading on hover', async () => {
+    respondBy({ host: DOC })
+    withStore(<HostMemoryPanel />)
+    expect(await screen.findByLabelText('DIMM A1 49 °C')).toHaveTextContent('A1')
+    expect(screen.getByText(/2 DIMMs · hottest/)).toHaveTextContent('2 DIMMs · hottest F1 55 °C · rated to 85 °C')
+    fireEvent.mouseEnter(screen.getByLabelText('DIMM F1 55 °C'))
+    expect(screen.getByText('DIMM F1')).toBeInTheDocument()
+    expect(screen.getByText('55 °C')).toBeInTheDocument()
   })
 })
 

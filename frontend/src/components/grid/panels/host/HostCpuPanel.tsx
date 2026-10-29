@@ -5,14 +5,15 @@ import { formatUptime, TEMP_LIMITS, tempTone } from '@/lib/host'
 import { NVIDIA_THEME } from '@/lib/theme'
 import type { HostDoc } from '@/types/host'
 import type { PanelContentProps } from '../../panelRegistry'
-import { FactLine, Headline, PowerStat } from '../power/PowerParts'
+import { Headline, PowerStat } from '../power/PowerParts'
 import { SeriesStrip } from '../tokens/TokenParts'
 
 const PILL = 'text-[9px] uppercase tracking-wider border rounded px-1'
 
 /**
  * The CPU at a glance, laid out like the Power page's UPS card: its load now as
- * the headline (tagged with the 5-minute load average), every core as a cell
+ * the headline (tagged with the 5-minute load average and the uptime), the
+ * processor's name and thread count, every core as a cell
  * coloured by its own load, then the die temperature (Tctl) with the hottest
  * CCD, the clocks, the load averages, and where the time goes (user, system,
  * waiting on I/O). Load and cores are the snapshot's, every second; the rest is
@@ -28,12 +29,19 @@ export function HostCpuPanel({ panel }: PanelContentProps) {
   const cores = cpu?.per_core ?? []
   const ccdMax = d?.temps.ccd.length ? Math.max(...d.temps.ccd) : null
   const pct = (v: number | null | undefined) => (v != null ? v.toFixed(1) : '—')
-  const facts = [cpu?.name, d?.cpus ? `${d.cpus} threads` : null, d?.uptime_s != null ? `up ${formatUptime(d.uptime_s)}` : null].filter(Boolean)
+  const name = [cpu?.name, d?.cpus ? `${d.cpus} threads` : null].filter(Boolean).join(' · ')
 
   return (
     <div className="h-full flex flex-col gap-1 min-w-0 overflow-hidden">
       <Headline value={load !== null ? Math.round(load) : '—'} unit="% CPU" color={utilColor(load)}
-        tag={d?.load['5'] != null ? <span className={`${PILL} text-zinc-400 border-zinc-700`} title="5-minute load average">load {d.load['5'].toFixed(2)}</span> : undefined} />
+        tag={
+          <>
+            {d?.load['5'] != null && <span className={`${PILL} text-zinc-400 border-zinc-700`} title="5-minute load average">load {d.load['5'].toFixed(2)}</span>}
+            {d?.uptime_s != null && <span className={`${PILL} text-zinc-400 border-zinc-700`} title="Time since the host booted">up {formatUptime(d.uptime_s)}</span>}
+          </>
+        } />
+      {/* The processor's name between the headline and its cores: what the grid below is made of. */}
+      {name && <span className="text-[10px] 2xl:text-xs font-mono text-zinc-400 truncate -mt-0.5">{name}</span>}
       {cores.length > 0 && (
         <div className="grid gap-px" style={{ gridTemplateColumns: `repeat(${Math.min(32, cores.length)}, minmax(0, 1fr))` }} aria-label="Load per core">
           {cores.map((c) => (
@@ -55,7 +63,6 @@ export function HostCpuPanel({ panel }: PanelContentProps) {
         <PowerStat label="System" value={pct(d?.cpu.system)} unit="%" />
         <PowerStat label="I/O wait" value={pct(d?.cpu.iowait)} unit="%" color={(d?.cpu.iowait ?? 0) >= 10 ? NVIDIA_THEME.warning : undefined} />
       </div>
-      {facts.length > 0 && <FactLine>{facts.join(' · ')}</FactLine>}
       <SeriesStrip points={series} color={NVIDIA_THEME.accent} label="CPU load, last few minutes"
         caption={<><span style={{ color: NVIDIA_THEME.accent }}>CPU</span>, last {panel.window}</>} />
     </div>
