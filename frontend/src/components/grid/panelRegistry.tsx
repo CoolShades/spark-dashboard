@@ -41,6 +41,7 @@ import { GpuCardPanel } from './panels/gpus/GpuCardPanel'
 import { GpuDayPanel } from './panels/gpus/GpuDayPanel'
 import { GpuHealthPanel } from './panels/gpus/GpuHealthPanel'
 import { GpuThermalsPanel } from './panels/gpus/GpuThermalsPanel'
+import { HostBmcPanel } from './panels/host/HostBmcPanel'
 import { HostCpuPanel } from './panels/host/HostCpuPanel'
 import { HostHistoryPanel } from './panels/host/HostHistoryPanel'
 import { HostMemoryPanel } from './panels/host/HostMemoryPanel'
@@ -123,6 +124,7 @@ const PANEL_CONTENT: Partial<Record<PanelType, ComponentType<PanelContentProps>>
   'host-memory': HostMemoryPanel,
   'host-storage': HostStoragePanel,
   'host-history': HostHistoryPanel,
+  'host-bmc': HostBmcPanel,
   'host-thermals': HostThermalsPanel,
   'host-services': HostServicesPanel,
 }

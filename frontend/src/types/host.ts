@@ -83,7 +83,12 @@ export interface HostStep {
   system: number | null
   iowait: number | null
   mem_percent: number | null
+  /** The 1, 5 and 15-minute load averages (what htop shows) at the end of the step. */
+  load1?: number | null
   load5: number | null
+  load15?: number | null
+  /** The BMC's +12 V rail at its lowest in the step. */
+  v12?: number | null
   tctl: number | null
   /** Bytes a second. */
   net_rx: number | null

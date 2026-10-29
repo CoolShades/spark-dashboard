@@ -190,6 +190,7 @@ export const PANEL_TYPES = {
   'host-memory': { binds: 'none', title: 'Host · Memory', size: { w: 4, h: 3 } },
   'host-storage': { binds: 'none', title: 'Host · Storage', size: { w: 4, h: 3 } },
   'host-history': { binds: 'none', title: 'Host · 24 h', size: { w: 12, h: 3 }, windowed: false },
+  'host-bmc': { binds: 'none', title: 'BMC', size: { w: 4, h: 3 }, windowed: false },
   'host-thermals': { binds: 'none', title: 'Thermals & Fans', size: { w: 6, h: 2 }, windowed: false },
   'host-services': { binds: 'none', title: 'Services & Network', size: { w: 6, h: 2 }, windowed: false },
 } as const satisfies Record<string, PanelTypeSpec>

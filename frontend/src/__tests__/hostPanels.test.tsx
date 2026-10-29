@@ -6,6 +6,7 @@ import { resetPowerPollers } from '../hooks/usePowerDocument'
 import { MetricsHistoryStore } from '../lib/metricsHistoryStore'
 import { bytesParts, formatUptime, tempTone, TEMP_LIMITS } from '../lib/host'
 import { NVIDIA_THEME } from '../lib/theme'
+import { HostBmcPanel } from '../components/grid/panels/host/HostBmcPanel'
 import { HostCpuPanel } from '../components/grid/panels/host/HostCpuPanel'
 import { HostHistoryPanel } from '../components/grid/panels/host/HostHistoryPanel'
 import { HostMemoryPanel } from '../components/grid/panels/host/HostMemoryPanel'
@@ -90,7 +91,8 @@ function respondBy(docs: Record<string, unknown>) {
   vi.stubGlobal(
     'fetch',
     vi.fn(async (url: string) => {
-      const key = Object.keys(docs).find((k) => String(url).includes(`/api/power/${k}`))
+      // The longest name first: /api/power/host-history also starts with /api/power/host.
+      const key = Object.keys(docs).sort((a, b) => b.length - a.length).find((k) => String(url).includes(`/api/power/${k}`))
       return key ? new Response(JSON.stringify(docs[key]), { status: 200 }) : new Response('nope', { status: 404 })
     }),
   )
@@ -166,9 +168,10 @@ describe('the Storage card', () => {
 
 describe('the 24 h host chart', () => {
   it('heads with the day’s CPU average and peak and the hottest Tctl', async () => {
-    respondBy({ 'host-history': HISTORY })
+    respondBy({ 'host-history': HISTORY, host: DOC })
     withStore(<HostHistoryPanel />)
-    expect(await screen.findByText(/peak/)).toHaveTextContent(/CPU avg 5\.[34] % · peak 9\.5 %/)
+    expect(await screen.findByText(/peak/)).toHaveTextContent(/load 0\.85 · 1\.75 · 2\.00 · CPU avg 5\.[34] % · peak 9\.5 %/)
+    expect(screen.getByText(/memory 27–27 %/)).toBeInTheDocument()
     expect(screen.getByText('72 °C')).toBeInTheDocument()
   })
 })
@@ -179,9 +182,25 @@ describe('the Thermals & fans card', () => {
     withStore(<HostThermalsPanel />)
     expect(await screen.findByRole('group', { name: 'LAN' })).toHaveTextContent('73°C10 GbE chip')
     expect(screen.getByLabelText('cha_fan1 2700 rpm')).toHaveTextContent('cha 12,700')
-    expect(screen.getByText('✓ 1 rails within ±5 %')).toBeInTheDocument()
-    fireEvent.mouseEnter(screen.getByText('✓ 1 rails within ±5 %'))
-    expect(screen.getByText('11.88 V (-1.0 %)')).toBeInTheDocument()
+  })
+})
+
+describe('the BMC card', () => {
+  it('gives every rail its deviation, the BMC’s checks with the PSU lines as one, and the 12 V rail’s day', async () => {
+    const flags = { ...DOC.bmc_flags, psu1_ac_lost: 'no_reading', psu2_ac_lost: 'no_reading', pcie03_temp: 'no_reading' }
+    respondBy({ host: { ...DOC, bmc_flags: flags }, 'host-history': { ...HISTORY, points: HISTORY.points.map((p, i) => ({ ...p, v12: [11.82, 11.88][i] })) } })
+    withStore(<HostBmcPanel />)
+    expect(await screen.findByText('Nominal')).toBeInTheDocument()
+    expect(screen.getByLabelText('+12v 11.88 V')).toHaveTextContent('+12V11.88−1.0%')
+    expect(screen.getByLabelText('+vcore 1.27 V')).toHaveTextContent('—') // no nominal in its name
+    expect(screen.getByText('not wired to the BMC')).toBeInTheDocument()
+    expect(await screen.findByText(/11\.82–11\.88 V/)).toBeInTheDocument() // the 24 h document lands after the host one
+  })
+
+  it('counts a rail off nominal and a failed check', async () => {
+    respondBy({ host: { ...DOC, rails: [{ name: '+5v', volts: 4.6, nominal: 5, ok: false }], bmc_flags: { watchdog2: 'ok', memory_train_err: 'error' } } })
+    withStore(<HostBmcPanel />)
+    expect(await screen.findByText('2 out of range')).toBeInTheDocument()
   })
 })
 

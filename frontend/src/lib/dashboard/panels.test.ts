@@ -65,6 +65,7 @@ describe('the panel type vocabulary', () => {
       'host-memory',
       'host-storage',
       'host-history',
+      'host-bmc',
       'host-thermals',
       'host-services',
     ])
