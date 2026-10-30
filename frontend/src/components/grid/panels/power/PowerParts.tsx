@@ -1,5 +1,7 @@
 import type { ReactNode } from 'react'
 import { createPortal } from 'react-dom'
+import { Line, LineChart, ReferenceDot, XAxis, YAxis } from 'recharts'
+import { ChartContainer, ChartTooltip } from '@/components/ui/chart'
 import type { PowerDocumentState } from '@/hooks/usePowerDocument'
 import { formatClock } from '@/lib/power'
 import { PanelNotice } from '../PanelNotice'
@@ -100,45 +102,78 @@ export function FactLine({ children }: { children: ReactNode }) {
 
 /**
  * A tiny live line from the poller's recent readings, for a panel whose figure
- * moves too little to see: the strip shows it is being read, and how it moves.
+ * moves too little to see: the strip shows it is being read, and how it moves,
+ * on a scale fitted to the window. Hovering gives a reading (`format`).
  */
-export function Sparkline({ points, color, label }: { points: ReadonlyArray<{ at: number; v: number }>; color: string; label: string }) {
+export function Sparkline({ points, color, label, format }: {
+  points: ReadonlyArray<{ at: number; v: number }>; color: string; label: string; format: (v: number) => string
+}) {
   if (points.length < 3) return null
-  const t0 = points[0].at
-  const t1 = points[points.length - 1].at
   const vs = points.map((p) => p.v)
   const lo = Math.min(...vs)
   const hi = Math.max(...vs)
   const pad = Math.max((hi - lo) * 0.15, 0.05)
-  const W = 300
-  const H = 28
-  const d = points
-    .map((p, i) => {
-      const x = ((p.at - t0) / Math.max(t1 - t0, 1)) * W
-      const y = H - ((p.v - (lo - pad)) / Math.max(hi - lo + 2 * pad, 1e-9)) * H
-      return `${i ? 'L' : 'M'}${x.toFixed(1)},${y.toFixed(1)}`
-    })
-    .join(' ')
   return (
-    <svg viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none" className="w-full h-6" aria-label={label}>
-      <path d={d} fill="none" stroke={color} strokeWidth={1.3} vectorEffect="non-scaling-stroke" />
-    </svg>
+    <HoverLines rows={points.map((p) => ({ t: p.at, v: p.v }))} x="t" lines={[{ key: 'v', color, width: 1.3 }]}
+      domain={[lo - pad, hi + pad]} label={label} text={(r) => (r.v != null ? format(r.v) : null)} />
   )
 }
 
+/** One line of a hoverable strip: its key in the rows, its colour, and how it is drawn. */
+export type StripLine = { key: string; color: string; width?: number; opacity?: number; dashed?: boolean }
+type StripRow = Record<string, number | null>
+
 /**
- * A chart's hovered point, in place of a tooltip box: a dot, and the value in a small dark label just above it. Near
- * the chart's top the label goes below the point (`flip`, for a chart with room under its line); near either end of
- * the window (`at`, the point's place in it, 0 to 1) it leans inward so it is not cut off at the chart's edge.
+ * A strip of live lines you can hover, in the place and size of the plain strips (`className`, h-6 by default): no
+ * axis or grid, on a fixed `domain`. Hovering draws a faint cursor and marks each line's point; the first line with a
+ * value there (the lines are listed in that order, and the first is drawn on top) carries the small dark label with
+ * `text(row)`, always above the point. `marks` are fixed dots, such as a line's latest point.
  */
+export function HoverLines({ rows, x, lines, domain, xDomain, label, text, marks = [], className = 'h-6' }: {
+  rows: ReadonlyArray<StripRow>; x: string; lines: ReadonlyArray<StripLine>; domain: [number, number]
+  xDomain?: [number, number]; label: string; text: (row: StripRow) => LabelText | null
+  marks?: ReadonlyArray<{ x: number; y: number; color: string }>; className?: string
+}) {
+  const last = Math.max(rows.length - 1, 1)
+  const config = Object.fromEntries(lines.map((l) => [l.key, { label: l.key, color: l.color }]))
+  const dot = (line: StripLine) => (d: HoveredPoint) => {
+    const row = d.index != null ? rows[d.index] : undefined
+    if (!row || d.cx == null || d.cy == null) return <g />
+    if (lines.find((l) => row[l.key] != null)?.key !== line.key) {
+      return <circle cx={d.cx} cy={d.cy} r={2} fill={line.color} pointerEvents="none" />
+    }
+    return <HoverLabel cx={d.cx} cy={d.cy} color={line.color} flip={false} at={(d.index ?? 0) / last} text={text(row)} />
+  }
+  return (
+    <div className={`w-full min-w-0 ${className}`} aria-label={label}>
+      <ChartContainer config={config} className="h-full w-full aspect-auto [&_.recharts-surface]:overflow-visible [&_:focus]:outline-none">
+        <LineChart data={[...rows]} margin={{ top: 1, right: 1, bottom: 1, left: 1 }}>
+          <XAxis dataKey={x} type="number" domain={xDomain ?? ['dataMin', 'dataMax']} hide />
+          <YAxis domain={domain} hide />
+          <ChartTooltip content={() => null} cursor={{ stroke: '#52525b', strokeDasharray: '2 2' }} isAnimationActive={false} />
+          {[...lines].reverse().map((l) => (
+            <Line key={l.key} dataKey={l.key} type="linear" stroke={l.color} strokeWidth={l.width ?? 1.5} strokeOpacity={l.opacity ?? 1}
+              strokeDasharray={l.dashed ? '3 2' : undefined} dot={false} isAnimationActive={false} activeDot={dot(l)} />
+          ))}
+          {marks.map((m) => <ReferenceDot key={`${m.x}:${m.y}`} x={m.x} y={m.y} r={2} fill={m.color} stroke="none" />)}
+        </LineChart>
+      </ChartContainer>
+    </div>
+  )
+}
+
 /** What recharts hands an activeDot: the hovered point's place, value and index in the data. */
 export type HoveredPoint = { cx?: number; cy?: number; value?: unknown; index?: number }
 
+/** A hover label's text: one string in the point's colour, or segments each with its own colour. */
+export type LabelText = string | ReadonlyArray<readonly [text: string, color: string]>
+
 export function HoverLabel({ cx, cy, text, color, at = 0.5, flip = true }: {
-  cx?: number; cy?: number; text: string | null; color: string; at?: number; flip?: boolean
+  cx?: number; cy?: number; text: LabelText | null; color: string; at?: number; flip?: boolean
 }) {
   if (cx == null || cy == null || text === null) return <g />
-  const w = 8 + text.length * 5.6
+  const parts = typeof text === 'string' ? [[text, color] as const] : text
+  const w = 8 + parts.reduce((n, [t]) => n + t.length, 0) * 5.6
   const y = !flip || cy > 20 ? cy - 18 : cy + 6
   const x = at > 0.85 ? cx - w + 6 : at < 0.15 ? cx - 6 : cx - w / 2
   return (
@@ -146,7 +181,9 @@ export function HoverLabel({ cx, cy, text, color, at = 0.5, flip = true }: {
       <circle cx={cx} cy={cy} r={2.5} fill={color} />
       <rect x={x} y={y} width={w} height={13} rx={3} fill="#09090b" fillOpacity={0.85} />
       <text x={x + w / 2} y={y + 9.5} textAnchor="middle" fontSize={9.5} fill={color}
-        style={{ fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace', fontVariantNumeric: 'tabular-nums' }}>{text}</text>
+        style={{ fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace', fontVariantNumeric: 'tabular-nums', whiteSpace: 'pre' }}>
+        {parts.map(([t, c], k) => <tspan key={k} fill={c}>{t}</tspan>)}
+      </text>
     </g>
   )
 }

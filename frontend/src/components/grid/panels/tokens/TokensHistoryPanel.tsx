@@ -1,13 +1,10 @@
 import { useMemo } from 'react'
 import { Area, CartesianGrid, ComposedChart, Line, XAxis, YAxis } from 'recharts'
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from '@/components/ui/chart'
-import { useLatestSnapshot } from '@/hooks/useMetricsStore'
-import { useSloSettings } from '@/hooks/useSloSettings'
 import { POWER_POLL_MS, usePowerDocument } from '@/hooks/usePowerDocument'
-import { engineKey } from '@/lib/identity'
 import { formatClock } from '@/lib/power'
 import { NVIDIA_THEME } from '@/lib/theme'
-import { formatRate, formatTokens, msParts, sloColor } from '@/lib/tokens'
+import { bandColor, formatRate, formatTokens, LATENCY_BANDS, msParts } from '@/lib/tokens'
 import type { TokenHistory } from '@/types/tokens'
 import { PanelNotice } from '../PanelNotice'
 import { PowerNotice } from '../power/PowerParts'
@@ -18,20 +15,18 @@ const AXIS_W = 44
 
 /**
  * The last 24 hours of tokens in 5-minute steps: output tokens a second as an
- * area on the left axis, prompt tokens a second as a line on the right (they
- * run two orders of magnitude apart), and under the time axis a ribbon of each
- * step's TTFT p95 against the SLO: green inside it, amber up to twice it, red
- * beyond, empty where nothing finished. The tooltip gives a step's rates,
+ * area on the left axis, prefill tokens a second as a line on the right (the
+ * prompt tokens computed: those served from the prefix cache cost no prefill,
+ * and counting them made a cached agent context read as 30K+ tok/s), and under
+ * the time axis a ribbon of each step's TTFT p95 on TTFT's band (green under
+ * 2 s, amber to 10 s, red beyond), empty where nothing finished. The tooltip gives a step's rates,
  * requests, the most running and its TTFT.
  */
 export function TokensHistoryPanel() {
   const history = usePowerDocument<TokenHistory>('token-history?hours=24', POWER_POLL_MS.tokenHistory)
-  const snapshot = useLatestSnapshot()
-  const engine = snapshot?.engines?.[0] ?? null
-  const { thresholds: slo } = useSloSettings(engine ? engineKey(engine) : null, engine?.model?.name ?? null)
   const h = history.data
   const rows = useMemo(
-    () => (h?.points ?? []).map((p) => ({ ...p, out: p.output / h!.step_seconds, in: p.prompt / h!.step_seconds })),
+    () => (h?.points ?? []).map((p) => ({ ...p, out: p.output / h!.step_seconds, in: Math.max(p.prompt - p.cached, 0) / h!.step_seconds })),
     [h],
   )
   if (!h) return <PowerNotice state={history} />
@@ -39,9 +34,10 @@ export function TokensHistoryPanel() {
 
   const out = rows.reduce((s, p) => s + p.output, 0)
   const inp = rows.reduce((s, p) => s + p.prompt, 0)
+  const cachedPct = inp > 0 ? Math.round((rows.reduce((s, p) => s + p.cached, 0) / inp) * 100) : null
   const req = rows.reduce((s, p) => s + p.requests, 0)
   const peak = Math.max(...rows.map((p) => p.out))
-  const config = { out: { label: 'Output', color: NVIDIA_THEME.accent }, in: { label: 'Prompt', color: PROMPT } }
+  const config = { out: { label: 'Output', color: NVIDIA_THEME.accent }, in: { label: 'Prefill', color: PROMPT } }
   const t0 = rows[0].t
   const t1 = rows[rows.length - 1].t + h.step_seconds * 1000
 
@@ -52,10 +48,10 @@ export function TokensHistoryPanel() {
           <span className="inline-block w-2.5 h-[2px] rounded-full" style={{ backgroundColor: NVIDIA_THEME.accent }} />output tok/s (left)
         </span>
         <span className="flex items-center gap-1.5 text-zinc-500">
-          <span className="inline-block w-2.5 h-[2px] rounded-full" style={{ backgroundColor: PROMPT }} />prompt tok/s (right)
+          <span className="inline-block w-2.5 h-[2px] rounded-full" style={{ backgroundColor: PROMPT }} />prefill tok/s (right)
         </span>
         <span className="ml-auto text-zinc-400">
-          <span className="text-zinc-100">{formatTokens(out)}</span> out · <span className="text-zinc-100">{formatTokens(inp)}</span> in ·{' '}
+          <span className="text-zinc-100">{formatTokens(out)}</span> out · <span className="text-zinc-100">{formatTokens(inp)}</span> in{cachedPct !== null ? ` (${cachedPct} % cached)` : ''} ·{' '}
           {req.toLocaleString('en-GB')} requests · peak {formatRate(peak)} tok/s
         </span>
       </div>
@@ -80,7 +76,7 @@ export function TokensHistoryPanel() {
                       <span className="ml-auto pl-3 font-mono font-medium text-foreground tabular-nums">{text}</span>
                     </div>
                   )
-                  const main = line(name === 'out' ? NVIDIA_THEME.accent : PROMPT, name === 'out' ? 'Output' : 'Prompt', `${formatRate(Number(value))} tok/s`)
+                  const main = line(name === 'out' ? NVIDIA_THEME.accent : PROMPT, name === 'out' ? 'Output' : 'Prefill', `${formatRate(Number(value))} tok/s`)
                   if (index !== 1) return main
                   const p = item?.payload as (typeof rows)[number]
                   return (
@@ -104,18 +100,18 @@ export function TokensHistoryPanel() {
         </ComposedChart>
       </ChartContainer>
       <div className="shrink-0 flex items-center gap-2 mt-0.5" style={{ paddingLeft: MARGIN + AXIS_W - 18, paddingRight: MARGIN + AXIS_W }}>
-        <span className="text-[9px] font-mono text-zinc-500 w-4 shrink-0" title="TTFT p95 per step against the SLO">TTFT</span>
-        <div className="relative h-2 flex-1" aria-label="TTFT p95 per step against the SLO">
+        <span className="text-[9px] font-mono text-zinc-500 w-4 shrink-0" title="TTFT p95 per step: green under 2 s, amber to 10 s, red beyond">TTFT</span>
+        <div className="relative h-2 flex-1" aria-label="TTFT p95 per step on its band">
           {rows.every((p) => p.ttft_p95_ms == null) && (
             <span className="absolute inset-0 flex items-center text-[9px] font-mono text-zinc-600 whitespace-nowrap">
-              TTFT p95 per step, against the {slo.ttftMs} ms SLO, as requests finish
+              TTFT p95 per step (green under {LATENCY_BANDS.ttft[0] / 1000} s, amber to {LATENCY_BANDS.ttft[1] / 1000} s), as requests finish
             </span>
           )}
           {rows.map((p) =>
             p.ttft_p95_ms == null ? null : (
               <span key={p.t} className="absolute inset-y-0 rounded-[1px]"
                 style={{ left: `${((p.t - t0) / (t1 - t0)) * 100}%`, width: `${Math.max(((h.step_seconds * 1000) / (t1 - t0)) * 100, 0.3)}%`,
-                  backgroundColor: sloColor(p.ttft_p95_ms, slo.ttftMs), opacity: 0.75 }}
+                  backgroundColor: bandColor(p.ttft_p95_ms, LATENCY_BANDS.ttft), opacity: 0.75 }}
                 aria-label={`${formatClock(p.t)} TTFT p95 ${Math.round(p.ttft_p95_ms)} ms`} />
             ),
           )}

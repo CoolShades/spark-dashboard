@@ -4,7 +4,7 @@ import type { ReactNode } from 'react'
 import { MetricsStoreContext } from '../hooks/useMetricsStore'
 import { resetPowerPollers } from '../hooks/usePowerDocument'
 import { MetricsHistoryStore } from '../lib/metricsHistoryStore'
-import { msParts, sloColor, tokenParts } from '../lib/tokens'
+import { bandColor, LATENCY_BANDS, msParts, tokenParts } from '../lib/tokens'
 import { formatClock } from '../lib/power'
 import { NVIDIA_THEME } from '../lib/theme'
 import { TokensDailyPanel } from '../components/grid/panels/tokens/TokensDailyPanel'
@@ -144,13 +144,17 @@ describe('the Prompt card', () => {
 })
 
 describe('the Latency card', () => {
-  it('reads the last day, coloured against the SLO, and the engine’s own figures while the day has none', async () => {
+  it('reads the last day, coloured by the latency bands, and the engine’s own figures while the day has none', async () => {
     respondBy({ tokens: DOC })
-    const { unmount } = withStore(<TokensLatencyPanel panel={card('tokens-latency')} />, [engine({ ttft_goodput_pct: 97 })])
-    expect(await screen.findByText('97 % in SLO')).toBeInTheDocument()
-    expect(screen.getByText('210')).toHaveStyle({ color: NVIDIA_THEME.accent }) // TTFT p50 inside the 500 ms default
+    const ttft = [{ le_seconds: 2, cumulative_count: 97 }, { le_seconds: 5, cumulative_count: 100 }]
+    const { unmount } = withStore(<TokensLatencyPanel panel={card('tokens-latency')} />, [engine({ ttft_goodput_pct: 40, ttft_buckets: ttft })])
+    // Within TTFT's green band (2 s) from the engine's histogram, not the backend's 500 ms goodput.
+    expect(await screen.findByText('97 % under 2 s')).toBeInTheDocument()
+    expect(screen.getByText('210')).toHaveStyle({ color: NVIDIA_THEME.accent })
     expect(screen.getByRole('group', { name: 'TTFT p99' })).toHaveTextContent('1.90s24 h')
+    expect(screen.getByText('1.90')).toHaveStyle({ color: NVIDIA_THEME.accent }) // amber under the old 2 × 500 ms rule
     expect(screen.getByRole('group', { name: 'E2E p95' })).toHaveTextContent('12.0s24 h')
+    expect(screen.getByText('12.0')).not.toHaveStyle({ color: NVIDIA_THEME.critical }) // no band: it is mostly the length
     unmount()
     resetPowerPollers()
     respondBy({ tokens: { ...DOC, latency_24h_ms: {} } })
@@ -172,6 +176,7 @@ describe('the 24 h tokens chart', () => {
     respondBy({ 'token-history': HISTORY })
     withStore(<TokensHistoryPanel />, [])
     expect(await screen.findByText(/requests · peak 100 tok\/s/)).toBeInTheDocument()
+    expect(screen.getByText(/\(93 % cached\)/)).toBeInTheDocument() // 1.4M of the 1.5M in came from the prefix cache
     expect(screen.getByLabelText(`${formatClock(T0)} TTFT p95 840 ms`)).toBeInTheDocument()
     expect(screen.queryByLabelText(new RegExp(`${formatClock(T0 + 300_000)} TTFT`))).toBeNull() // nothing finished: no mark
   })
@@ -214,13 +219,15 @@ describe('the token helpers', () => {
     expect(bucketQuantile([{ le_seconds: 0.1, cumulative_count: 0 }], 0.5)).toBeNull()
   })
 
-  it('splits counts and durations for tiles, and judges a latency against its SLO', () => {
+  it('splits counts and durations for tiles, and judges a latency by its band', () => {
     expect(tokenParts(1_446_188)).toEqual({ value: '1.4', unit: 'M' })
     expect(tokenParts(512)).toEqual({ value: '512', unit: '' })
     expect(msParts(840)).toEqual({ value: '840', unit: 'ms' })
     expect(msParts(1900)).toEqual({ value: '1.90', unit: 's' })
-    expect(sloColor(400, 500)).toBe(NVIDIA_THEME.accent)
-    expect(sloColor(900, 500)).toBe(NVIDIA_THEME.warning)
-    expect(sloColor(1100, 500)).toBe(NVIDIA_THEME.critical)
+    expect(bandColor(1500, LATENCY_BANDS.ttft)).toBe(NVIDIA_THEME.accent)
+    expect(bandColor(6000, LATENCY_BANDS.ttft)).toBe(NVIDIA_THEME.warning)
+    expect(bandColor(12_000, LATENCY_BANDS.ttft)).toBe(NVIDIA_THEME.critical)
+    expect(bandColor(8, LATENCY_BANDS.tpot)).toBe(NVIDIA_THEME.accent) // 125 tok/s
+    expect(bandColor(null, LATENCY_BANDS.itl)).toBe('#f4f4f5')
   })
 })

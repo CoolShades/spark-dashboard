@@ -31,11 +31,29 @@ export function msParts(ms: number | null | undefined): { value: string; unit: s
   return { value: (ms / 1000).toFixed(ms < 10_000 ? 2 : 1), unit: 's' }
 }
 
-/** A latency against its SLO threshold: green within it, amber up to twice it, red beyond; plain without data. */
-export function sloColor(ms: number | null | undefined, threshold: number): string {
+/**
+ * The Tokens pages' latency bands, [green up to, amber up to] in ms, red beyond: set for long agent contexts served
+ * mostly from the prefix cache, with people waiting on some replies, not a chat service's 500 ms defaults.
+ * - TTFT: under 2 s still feels interactive; to 10 s is a long fresh context being read, which an agent step can
+ *   wait for; beyond that even an agent is held up.
+ * - TPOT: 10 ms a token is 100 tok/s, the decode speed worth serving at; 20 ms is 50 tok/s.
+ * - ITL: the gap between streamed chunks, about three tokens each with speculative decoding, so 30 and 60 ms are the
+ *   same 100 and 50 tok/s.
+ * - Queue: a wait means every slot was busy; a second is noticeable, five a backlog.
+ * End-to-end time has no band: it is mostly how long the answer is.
+ */
+export const LATENCY_BANDS = {
+  ttft: [2_000, 10_000],
+  tpot: [10, 20],
+  itl: [30, 60],
+  queue: [1_000, 5_000],
+} as const satisfies Record<string, readonly [number, number]>
+
+/** A latency against its band: green within the first bound, amber to the second, red beyond; plain without data. */
+export function bandColor(ms: number | null | undefined, [green, amber]: readonly [number, number]): string {
   if (ms == null) return '#f4f4f5'
-  if (ms <= threshold) return NVIDIA_THEME.accent
-  if (ms <= threshold * 2) return NVIDIA_THEME.warning
+  if (ms <= green) return NVIDIA_THEME.accent
+  if (ms <= amber) return NVIDIA_THEME.warning
   return NVIDIA_THEME.critical
 }
 

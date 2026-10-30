@@ -202,7 +202,7 @@ export function PowerUpsPanel() {
         </FactLine>
       )}
       <StripFooter caption={minutes !== null ? `mains in, last ${minutes} min` : 'mains in'} title={transfer ?? undefined}>
-        <Sparkline points={volts} color="#38bdf8" label="Mains voltage, last few minutes" />
+        <Sparkline points={volts} color="#38bdf8" label="Mains voltage, last few minutes" format={(v) => `${v.toFixed(1)} V`} />
       </StripFooter>
     </div>
   )

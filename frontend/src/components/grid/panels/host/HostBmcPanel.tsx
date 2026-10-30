@@ -91,7 +91,7 @@ export function HostBmcPanel() {
           </span>
         ))}
       </div>
-      <SeriesStrip points={v12} color={NVIDIA_THEME.accent} label="+12 V rail, last 24 h"
+      <SeriesStrip points={v12} color={NVIDIA_THEME.accent} label="+12 V rail, last 24 h" format={(v) => `${v.toFixed(2)} V`}
         caption={<><span style={{ color: NVIDIA_THEME.accent }}>+12 V</span> rail, 24 h{lo !== null && hi !== null ? ` · ${lo.toFixed(2)}–${hi.toFixed(2)} V` : ''}</>} />
     </div>
   )

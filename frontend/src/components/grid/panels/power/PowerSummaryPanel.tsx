@@ -3,7 +3,7 @@ import { cumulativeCost, formatKwh, formatMoney, formatUnitPrice, formatWattsVal
 import { NVIDIA_THEME } from '@/lib/theme'
 import type { PowerDaily, PowerNow } from '@/types/power'
 import { PanelNotice } from '../PanelNotice'
-import { FactLine, Headline, PowerNotice, PowerStat, StaleBadge, StripFooter } from './PowerParts'
+import { FactLine, Headline, HoverLines, PowerNotice, PowerStat, StaleBadge, StripFooter, type LabelText } from './PowerParts'
 
 const IDLE_COLOR = '#71717a'
 const YESTERDAY_COLOR = '#a1a1aa'
@@ -19,10 +19,17 @@ function at(points: Array<[number, number]>, hour: number): number | null {
   return points[points.length - 1][1]
 }
 
+/** A cumulative day's hour as a clock time: 13.5 → "13:30". */
+function hourClock(h: number): string {
+  const mins = Math.round(h * 60)
+  return `${String(Math.floor(mins / 60)).padStart(2, '0')}:${String(mins % 60).padStart(2, '0')}`
+}
+
 /**
  * The card's strip, in the same place as the wall and UPS cards' strips: today's
  * spend through the day so far against yesterday's whole day, both from the
- * 7-day document's hourly draw at the current unit price.
+ * 7-day document's hourly draw at the current unit price. Hovering an hour gives
+ * both days' spend by then and today's difference from yesterday.
  */
 function TodayVsYesterday({ daily, price, currency, now }: { daily: PowerDaily | null; price: number; currency: string; now: number }) {
   const days = daily?.days ?? []
@@ -32,13 +39,30 @@ function TodayVsYesterday({ daily, price, currency, now }: { daily: PowerDaily |
   const yesterday = cumulativeCost(days[days.length - 2], price)
   if (today.length < 2 && yesterday.length < 2) return null
   const top = Math.max(...today.map((p) => p[1]), ...yesterday.map((p) => p[1]), 0.01)
-  const W = 300
-  const H = 40
-  const path = (pts: Array<[number, number]>) =>
-    pts.map(([h, v], i) => `${i ? 'L' : 'M'}${((h / 24) * W).toFixed(1)},${(H - 1 - (v / top) * (H - 3)).toFixed(1)}`).join(' ')
   const end = today[today.length - 1]
   const byNow = at(yesterday, hourNow)
   const allDay = yesterday.length ? yesterday[yesterday.length - 1][1] : null
+  // A row each whole hour and one at now, with both days' spend by then (today's only up to now).
+  const hours = [...new Set([...Array.from({ length: 25 }, (_, h) => h), hourNow])].sort((a, b) => a - b)
+  const rows = hours.map((h) => ({ h, today: h <= hourNow + 1e-9 ? at(today, h) : null, yday: at(yesterday, h) }))
+  const money = (v: number) => formatMoney(v, currency)
+  const text = (r: Record<string, number | null>): LabelText | null => {
+    const when = `${hourClock(r.h ?? 0)} `
+    const t = r.today
+    const y = r.yday
+    if (t != null && y != null) {
+      const diff = y > 0 ? Math.round(((t - y) / y) * 100) : null
+      return [
+        [when, '#71717a'], [money(t), NVIDIA_THEME.accent], [` · yday ${money(y)}`, YESTERDAY_COLOR],
+        ...(diff !== null
+          ? [[` · ${diff > 0 ? '+' : diff < 0 ? '−' : '±'}${Math.abs(diff)} %`, diff > 0 ? NVIDIA_THEME.warning : NVIDIA_THEME.accent] as const]
+          : []),
+      ]
+    }
+    if (y != null) return [[`${when}yday `, '#71717a'], [money(y), YESTERDAY_COLOR]]
+    if (t != null) return [[when, '#71717a'], [money(t), NVIDIA_THEME.accent]]
+    return null
+  }
   return (
     <StripFooter
       title="What each day had cost by each hour, from its hourly draw at the current unit price"
@@ -49,15 +73,12 @@ function TodayVsYesterday({ daily, price, currency, now }: { daily: PowerDaily |
         </>
       }
     >
-      <svg viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none" className="w-full h-6" aria-label="Today vs yesterday, cost through the day">
-        {yesterday.length > 1 && (
-          <path d={path(yesterday)} fill="none" stroke={YESTERDAY_COLOR} strokeOpacity={0.6} strokeWidth={1} strokeDasharray="3 2" vectorEffect="non-scaling-stroke" />
-        )}
-        {today.length > 1 && (
-          <path d={path(today)} fill="none" stroke={NVIDIA_THEME.accent} strokeWidth={1.5} vectorEffect="non-scaling-stroke" />
-        )}
-        {today.length > 1 && <circle cx={(end[0] / 24) * W} cy={H - 1 - (end[1] / top) * (H - 3)} r={2} fill={NVIDIA_THEME.accent} />}
-      </svg>
+      <HoverLines rows={rows} x="h" xDomain={[0, 24]} domain={[0, top]} label="Today vs yesterday, cost through the day" text={text}
+        lines={[
+          { key: 'today', color: NVIDIA_THEME.accent },
+          { key: 'yday', color: YESTERDAY_COLOR, width: 1, opacity: 0.6, dashed: true },
+        ]}
+        marks={today.length > 1 ? [{ x: end[0], y: end[1], color: NVIDIA_THEME.accent }] : []} />
     </StripFooter>
   )
 }

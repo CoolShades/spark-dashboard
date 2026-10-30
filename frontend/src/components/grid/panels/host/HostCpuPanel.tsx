@@ -63,7 +63,7 @@ export function HostCpuPanel({ panel }: PanelContentProps) {
         <PowerStat label="System" value={pct(d?.cpu.system)} unit="%" />
         <PowerStat label="I/O wait" value={pct(d?.cpu.iowait)} unit="%" color={(d?.cpu.iowait ?? 0) >= 10 ? NVIDIA_THEME.warning : undefined} />
       </div>
-      <SeriesStrip points={series} color={NVIDIA_THEME.accent} label="CPU load, last few minutes"
+      <SeriesStrip points={series} color={NVIDIA_THEME.accent} label="CPU load, last few minutes" format={(v) => `${Math.round(v)} %`}
         caption={<><span style={{ color: NVIDIA_THEME.accent }}>CPU</span>, last {panel.window}</>} />
     </div>
   )

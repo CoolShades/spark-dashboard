@@ -121,7 +121,7 @@ export function HostStoragePanel({ panel }: PanelContentProps) {
         <PowerStat label="Hottest" value={hottest?.temp_c != null ? Math.round(hottest.temp_c) : '—'} unit="°C"
           color={tempTone(hottest?.temp_c, ...TEMP_LIMITS.drive)} sub={hottest ? hottest.role ?? hottest.device : undefined} />
       </div>
-      <SeriesStrip points={series} color="#a78bfa" label="Disk writes, last few minutes"
+      <SeriesStrip points={series} color="#a78bfa" label="Disk writes, last few minutes" format={formatRate}
         caption={<><span className="text-violet-400">disk writes</span>, last {panel.window}</>} />
       {hover && (
         <Floating at={hover.at} className="grid items-start gap-1 rounded-lg border border-border/50 bg-background px-2.5 py-1.5 text-xs shadow-xl min-w-44">

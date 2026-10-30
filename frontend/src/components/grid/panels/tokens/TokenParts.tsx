@@ -3,7 +3,7 @@ import { Area, AreaChart, CartesianGrid, XAxis, YAxis } from 'recharts'
 import { ChartContainer, ChartTooltip } from '@/components/ui/chart'
 import type { DataPoint } from '@/lib/metricsHistoryStore'
 import { NVIDIA_THEME } from '@/lib/theme'
-import { HoverLabel, StripFooter, type HoveredPoint } from '../power/PowerParts'
+import { HoverLabel, HoverLines, StripFooter, type HoveredPoint } from '../power/PowerParts'
 
 /** The axis's top for a window peaking at `hi`: the next of 1, 1.5, 2, 3, 4, 5, 6, 8, 10 × a power of ten. */
 function niceTop(hi: number): number {
@@ -12,22 +12,20 @@ function niceTop(hi: number): number {
   return ([1, 1.5, 2, 3, 4, 5, 6, 8, 10].find((n) => n * mag >= hi - 1e-9) ?? 10) * mag
 }
 
-/** A card's strip, like the Power page's: one live line over the panel's window, from 0, and its caption. */
-export function SeriesStrip({ points, color, caption, label }: { points: DataPoint[]; color: string; caption: ReactNode; label: string }) {
+/**
+ * A card's strip, like the Power page's: one live line over the panel's window, from 0, and its caption. Hovering
+ * gives the value at that moment (`format`) in the charts' small label.
+ */
+export function SeriesStrip({ points, color, caption, label, format }: {
+  points: DataPoint[]; color: string; caption: ReactNode; label: string; format: (v: number) => string
+}) {
   if (points.length < 3) return <StripFooter caption={caption}><span className="block h-6" /></StripFooter>
-  const t0 = points[0].timestamp
-  const t1 = points[points.length - 1].timestamp
-  const top = Math.max(...points.map((p) => p.value), 1e-9)
-  const W = 300
-  const H = 40
-  const d = points
-    .map((p, i) => `${i ? 'L' : 'M'}${(((p.timestamp - t0) / Math.max(t1 - t0, 1)) * W).toFixed(1)},${(H - 1 - (p.value / top) * (H - 2)).toFixed(1)}`)
-    .join(' ')
+  const rows = points.map((p) => ({ t: p.timestamp, v: p.value }))
+  const top = Math.max(...rows.map((r) => r.v), 1e-9)
   return (
     <StripFooter caption={caption}>
-      <svg viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none" className="w-full h-6" aria-label={label}>
-        <path d={d} fill="none" stroke={color} strokeWidth={1.5} vectorEffect="non-scaling-stroke" />
-      </svg>
+      <HoverLines rows={rows} x="t" lines={[{ key: 'v', color }]} domain={[0, top]} label={label}
+        text={(r) => (r.v != null ? format(r.v) : null)} />
     </StripFooter>
   )
 }
