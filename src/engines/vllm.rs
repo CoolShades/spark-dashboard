@@ -1,4 +1,4 @@
-use super::common::{warmup_skip_from_env, CounterRate, EngineHttp};
+use super::common::{warmup_skip_from_env, CounterRate, EngineHttp, PrefillRate};
 use super::histogram::{goodput_pct, mean_ms, percentiles_ms, wire_buckets};
 use super::model_info::ModelResolver;
 use super::prometheus::parse_prometheus_text;
@@ -26,8 +26,9 @@ pub struct VllmAdapter {
     /// generation_tokens_total counter.
     gen_rate: Mutex<CounterRate>,
     /// Prefill tokens/s and its running average: prompt_tokens_total less the
-    /// prompt tokens served from the prefix cache (see `computed_prompt_tokens`).
-    prompt_rate: Mutex<CounterRate>,
+    /// prompt tokens served from the prefix cache (see `computed_prompt_tokens`),
+    /// each landed prefill spread over its own prefill time (see `PrefillRate`).
+    prompt_rate: Mutex<PrefillRate>,
     /// Previous (accepted, draft) spec-decode counter readings, used to compute
     /// the live (windowed) token acceptance rate from per-poll deltas. No
     /// timestamp is stored because the live TAR is a unit-free ratio of deltas.
@@ -186,8 +187,9 @@ impl EngineAdapter for VllmAdapter {
             }
         };
 
-        // Token rates from the generation and prompt counters (delta /
-        // elapsed), each with the running mean of its nonzero readings.
+        // Token rates, each with the running mean of its nonzero readings: the
+        // generation counter's delta over elapsed, and the computed prompt
+        // tokens spread over the prefill time that produced them.
         let current_gen = counter("vllm_generation_tokens_total");
         let current_prompt = computed_prompt_tokens(
             counter("vllm_prompt_tokens_total"),
@@ -197,7 +199,11 @@ impl EngineAdapter for VllmAdapter {
         let (tokens_per_sec, avg_tokens_per_sec) =
             self.gen_rate.lock().await.observe(current_gen, now);
         let (prompt_tokens_per_sec, avg_prompt_tokens_per_sec) =
-            self.prompt_rate.lock().await.observe(current_prompt, now);
+            self.prompt_rate.lock().await.observe(
+                current_prompt,
+                counter("vllm_request_prefill_time_seconds_sum"),
+                now,
+            );
 
         // Per-request prefill speed (see `prefill_tokens_per_sec`).
         let per_request_prompt_tps = prefill_tokens_per_sec(
