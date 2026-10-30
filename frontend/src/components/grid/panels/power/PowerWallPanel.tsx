@@ -39,7 +39,7 @@ function LiveChart({ recent }: { recent: ReadonlyArray<{ at: number; data: Power
   return (
     <div className="flex-1 min-h-[56px] flex flex-col min-w-0" aria-label="Last few minutes">
       <ChartContainer config={{ wall: { label: 'Wall', color: NVIDIA_THEME.accent }, metered: { label: 'Supplies', color: METER_COLOR } }}
-        className="w-full flex-1 min-h-0 aspect-auto">
+        className="w-full flex-1 min-h-0 aspect-auto [&_:focus]:outline-none">
         <ComposedChart data={rows} margin={{ top: 4, right: 4, bottom: 0, left: 0 }}>
           <CartesianGrid stroke={NVIDIA_THEME.chartGrid} strokeDasharray="3 3" vertical={false} />
           <XAxis dataKey="t" type="number" domain={['dataMin', 'dataMax']} hide />

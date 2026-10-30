@@ -36,7 +36,8 @@ export function SeriesStrip({ points, color, caption, label }: { points: DataPoi
  * A live line you can hover, like the wall card's chart: from 0 to the window's peak (rounded up, or `max`), filling
  * its parent's height, with a three-tick axis when `axis` is set. Hovering marks the point and gives its value in a
  * small dark label above it (`format`). In a short strip (no axis) the label always sits above the line and may run
- * over what is above the strip; it never drops under the strip's foot.
+ * over what is above the strip; it never drops under the strip's foot. The focus ring recharts' keyboard layer
+ * would draw round the whole chart on hover is hidden.
  */
 export function HoverStrip({ points, color, label, format, max, axis = false }: {
   points: DataPoint[]; color: string; label: string; format: (v: number) => string; max?: number; axis?: boolean
@@ -46,18 +47,18 @@ export function HoverStrip({ points, color, label, format, max, axis = false }: 
   const top = max ?? niceTop(Math.max(...rows.map((r) => r.v)))
   return (
     <div className="flex-1 min-h-0 flex min-w-0" aria-label={label}>
-      <ChartContainer config={{ v: { label, color } }} className="w-full flex-1 min-h-0 aspect-auto [&_.recharts-surface]:overflow-visible">
+      <ChartContainer config={{ v: { label, color } }} className="w-full flex-1 min-h-0 aspect-auto [&_.recharts-surface]:overflow-visible [&_:focus]:outline-none">
         <AreaChart data={rows} margin={{ top: 2, right: 2, bottom: 0, left: 0 }}>
           {axis && <CartesianGrid stroke={NVIDIA_THEME.chartGrid} strokeDasharray="3 3" vertical={false} />}
           <XAxis dataKey="t" type="number" domain={['dataMin', 'dataMax']} hide />
           <YAxis hide={!axis} width={34} stroke={NVIDIA_THEME.chartAxis} fontSize={10} tickLine={false} axisLine={false}
-            domain={[0, top]} ticks={[0, top / 2, top]} tickFormatter={(v: number) => v.toLocaleString('en-GB')} />
+            domain={[0, top]} ticks={[0, top / 2, top]} interval={0} tickFormatter={(v: number) => v.toLocaleString('en-GB')} />
           <ChartTooltip content={() => null} cursor={{ stroke: '#52525b', strokeDasharray: '2 2' }} isAnimationActive={false} />
           <Area dataKey="v" type="monotone" stroke={color} fill={color} fillOpacity={0.15} strokeWidth={1.3} dot={false}
             isAnimationActive={false}
             activeDot={(d: HoveredPoint) => (
               <HoverLabel cx={d.cx} cy={d.cy} color={color} flip={axis} at={(d.index ?? 0) / (rows.length - 1)}
-                text={typeof d.value === 'number' ? format(d.value) : null} />
+                text={d.index != null && rows[d.index] ? format(rows[d.index].v) : null} />
             )} />
         </AreaChart>
       </ChartContainer>
