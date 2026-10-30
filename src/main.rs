@@ -4,6 +4,7 @@ mod config_store;
 #[cfg(test)]
 mod deploy_files;
 mod engines;
+mod history;
 mod metrics;
 mod power;
 mod server;
@@ -274,9 +275,13 @@ async fn run_server_inner(args: RunArgs) -> Result<(), Box<dyn std::error::Error
         api_keys,
     ));
 
+    // The last few minutes of snapshots, for a client that missed them.
+    let history = Arc::new(history::SnapshotHistory::new(args.poll_interval));
+
     // Pass engine_state to metrics collector so it includes engines in snapshots
     tokio::spawn(metrics::metrics_collector(
         tx.clone(),
+        history.clone(),
         args.poll_interval,
         args.gpu_index,
         args.simulate_gpus,
@@ -313,6 +318,7 @@ async fn run_server_inner(args: RunArgs) -> Result<(), Box<dyn std::error::Error
 
     let app = server::create_router(server::AppState {
         metrics_tx: tx,
+        history,
         config,
         power,
     });

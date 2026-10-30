@@ -184,6 +184,22 @@ export interface PowerHistoryPoint {
   on_battery: boolean
 }
 
+/**
+ * `/recent?minutes=N`: the live strips' last few minutes as the source recorded them, so a strip does not depend on
+ * a browser having polled `/now` all that time (docs/power.md, "Recent").
+ */
+export interface PowerRecent {
+  minutes: number
+  /** The grid the rows sit on, in seconds. */
+  step_s: number
+  /** The supplies summed into `metered`, matching `PowerSupply.name` in `/now`. */
+  supplies: string[]
+  /** Oldest first; `t` in epoch ms. `metered` is null unless every supply had a reading. */
+  rows: Array<{ t: number; wall: number | null; metered: number | null }>
+  /** The UPS's mains input, at its own reporting interval. */
+  volts: Array<{ t: number; v: number }>
+}
+
 export interface PowerHistory {
   hours: number
   step_seconds: number

@@ -33,6 +33,9 @@ const TIMEOUT: Duration = Duration::from_secs(5);
 const MAX_HISTORY_HOURS: u32 = 168;
 const DEFAULT_HISTORY_HOURS: u32 = 24;
 const MAX_DAILY_DAYS: u32 = 31;
+/// The live strips' window: up to the longest chart window (15 minutes), 5 by default.
+const MAX_RECENT_MINUTES: u32 = 15;
+const DEFAULT_RECENT_MINUTES: u32 = 5;
 const DEFAULT_DAILY_DAYS: u32 = 7;
 
 /// Where the power documents come from.
@@ -136,6 +139,11 @@ pub struct DailyQuery {
     days: Option<u32>,
 }
 
+#[derive(Debug, Deserialize)]
+pub struct RecentQuery {
+    minutes: Option<u32>,
+}
+
 fn bounded(value: Option<u32>, default: u32, max: u32) -> u32 {
     value.unwrap_or(default).clamp(1, max)
 }
@@ -145,6 +153,18 @@ pub async fn now(State(state): State<AppState>) -> Response {
         return not_configured();
     };
     source.fetch(source.url("now", &[])).await
+}
+
+/// The live strips' last few minutes as the source recorded them, so a strip
+/// does not depend on a browser having polled `/now` all that time.
+pub async fn recent(State(state): State<AppState>, Query(q): Query<RecentQuery>) -> Response {
+    let Some(source) = state.power.as_deref() else {
+        return not_configured();
+    };
+    let minutes = bounded(q.minutes, DEFAULT_RECENT_MINUTES, MAX_RECENT_MINUTES);
+    source
+        .fetch(source.url("recent", &[("minutes", minutes.to_string())]))
+        .await
 }
 
 pub async fn history(State(state): State<AppState>, Query(q): Query<HistoryQuery>) -> Response {
@@ -302,6 +322,12 @@ mod tests {
                 "/daily",
                 get(|| async { (StatusCode::INTERNAL_SERVER_ERROR, "boom") }),
             )
+            .route(
+                "/recent",
+                get(|RawQuery(q): RawQuery| async move {
+                    format!(r#"{{"query":"{}"}}"#, q.unwrap_or_default())
+                }),
+            )
             .route("/gpus", get(|| async { r#"{"gpus":[]}"# }))
             .route("/tokens", get(|| async { r#"{"today":{}}"# }))
             .route("/host", get(|| async { r#"{"arrays":[]}"# }))
@@ -327,6 +353,7 @@ mod tests {
         let (tx, _rx) = tokio::sync::broadcast::channel::<String>(16);
         let app = crate::server::create_router(AppState {
             metrics_tx: tx,
+            history: std::sync::Arc::new(crate::history::SnapshotHistory::new(1000)),
             config: std::sync::Arc::new(crate::config_store::ConfigStore::new(dir).await),
             power: power.map(std::sync::Arc::new),
         });
@@ -354,6 +381,16 @@ mod tests {
         .await
         .unwrap();
         assert_eq!(history.text().await.unwrap(), r#"{"query":"hours=168"}"#);
+
+        // The live strips' window, clamped to the longest chart window.
+        let recent = reqwest::get(format!("{base}/api/power/recent?minutes=60"))
+            .await
+            .unwrap();
+        assert_eq!(recent.text().await.unwrap(), r#"{"query":"minutes=15"}"#);
+        let recent = reqwest::get(format!("{base}/api/power/recent"))
+            .await
+            .unwrap();
+        assert_eq!(recent.text().await.unwrap(), r#"{"query":"minutes=5"}"#);
 
         // The GPUs page's documents, under the same rules.
         let gpus = reqwest::get(format!("{base}/api/power/gpus"))
@@ -416,6 +453,7 @@ mod tests {
 
         for path in [
             "now",
+            "recent",
             "history",
             "daily",
             "gpus",

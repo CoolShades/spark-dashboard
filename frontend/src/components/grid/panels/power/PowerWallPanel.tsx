@@ -5,7 +5,7 @@ import { POWER_POLL_MS, usePowerDocument } from '@/hooks/usePowerDocument'
 import { formatWattsValue, splitWall, sumGpuWatts } from '@/lib/power'
 import { NVIDIA_THEME } from '@/lib/theme'
 import type { GpuMetrics } from '@/types/metrics'
-import type { PowerHistory, PowerNow } from '@/types/power'
+import type { PowerHistory, PowerNow, PowerRecent } from '@/types/power'
 import { usePanelDevice } from '../../panelDevice'
 import { PanelNotice } from '../PanelNotice'
 import { FactLine, Headline, HoverLabel, PowerNotice, PowerStat, StaleBadge, type HoveredPoint } from './PowerParts'
@@ -20,14 +20,8 @@ const METER_COLOR = '#e4e4e7'
  * window holds (the UPS reads in coarse steps, the supplies every second, and both sit far above zero, so a
  * zero-based axis left them flat along the bottom). Hovering marks the supplies' line with its metered figure.
  */
-function LiveChart({ recent }: { recent: ReadonlyArray<{ at: number; data: PowerNow }> }) {
-  const rows = recent
-    .filter((r) => r.data.total_watts !== null)
-    .map((r) => {
-      const meters = r.data.supplies.map((sp) => sp.input_watts ?? sp.output_watts)
-      const read = meters.filter((w): w is number => w !== null)
-      return { t: r.at, wall: r.data.total_watts, metered: read.length ? read.reduce((a, b) => a + b, 0) : null, supplies: r.data.supplies }
-    })
+function LiveChart({ recent }: { recent: PowerRecent | null }) {
+  const rows = recent?.rows ?? []
   if (rows.length < 3) return <div className="flex-1 min-h-0" />
   const t0 = rows[0].t
   const t1 = rows[rows.length - 1].t
@@ -35,7 +29,7 @@ function LiveChart({ recent }: { recent: ReadonlyArray<{ at: number; data: Power
   const lo = Math.min(...values)
   const hi = Math.max(...values)
   const pad = Math.max(10, (hi - lo) * 0.2)
-  const names = rows[rows.length - 1].supplies.filter((sp) => (sp.input_watts ?? sp.output_watts) !== null).map((sp) => sp.name)
+  const names = recent?.supplies ?? []
   return (
     <div className="flex-1 min-h-[56px] flex flex-col min-w-0" aria-label="Last few minutes">
       <ChartContainer config={{ wall: { label: 'Wall', color: NVIDIA_THEME.accent }, metered: { label: 'Supplies', color: METER_COLOR } }}
@@ -100,13 +94,15 @@ function GpuRow({ gpus, labels }: { gpus: ReadonlyArray<GpuMetrics>; labels: Rea
  * NVML reading, so that slice moves every second), the other loads on the same
  * meter (a router on the UPS, estimated by the source), and the system: CPU,
  * memory, disks, fans and the supplies' losses. Then the GPU slice card by
- * card, and a live chart of the last few minutes, polled every 2 s, scaled to
- * what it holds, the supplies' metered figure on hover.
+ * card, and a live chart of the last few minutes as the source recorded them
+ * (so a closed or hidden tab comes back without a gap), scaled to what it
+ * holds, the supplies' metered figure on hover.
  */
 export function PowerWallPanel() {
   const now = usePowerDocument<PowerNow>('now', POWER_POLL_MS.now)
   const snapshot = useLatestSnapshot()
   const history = usePowerDocument<PowerHistory>('history?hours=24', POWER_POLL_MS.history)
+  const recent = usePowerDocument<PowerRecent>('recent?minutes=5', POWER_POLL_MS.recent)
   usePanelDevice(now.data?.total_source ?? null)
   if (!now.data) return <PowerNotice state={now} />
 
@@ -174,7 +170,7 @@ export function PowerWallPanel() {
       <div className="mt-1.5">
         <GpuRow gpus={snapshot?.gpus ?? []} labels={history.data?.gpu_labels ?? []} />
       </div>
-      <LiveChart recent={now.recent as ReadonlyArray<{ at: number; data: PowerNow }>} />
+      <LiveChart recent={recent.data} />
     </div>
   )
 }

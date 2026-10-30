@@ -14,7 +14,8 @@ spark-dashboard --power-url http://127.0.0.1:18031      # or SPARK_DASHBOARD_POW
 
 The dashboard relays the documents to the browser under `/api/power/now`,
 `/api/power/history?hours=N` (1-168, default 24) and `/api/power/daily?days=N`
-(1-31, default 7). It passes on nothing else: GET only, those three paths,
+(1-31, default 7), plus `/api/power/recent` for the live strips (below). It
+passes on nothing else: GET only, those paths,
 bounded parameters, a 5 s timeout and a 1 MiB cap. The source's URL never
 reaches the browser, so a source bound to loopback can stay there. Without
 `--power-url` the routes answer 404 and the panels say no source is configured.
@@ -139,6 +140,27 @@ Live readings, polled every 2 s (the wall tile keeps the last 5 minutes of polls
   for 30 days, and today's energy split into `today_idle_kwh` (under the floor)
   and `today_work_kwh` / `today_work_cost` (above it).
 
+## `GET /recent?minutes=N`
+
+The live strips' last few minutes (relayed as `/api/power/recent?minutes=N`,
+1-15, default 5), polled every 2 s with `/now`. The wall card's chart and the
+UPS card's mains strip draw from this, not from the polls a browser happened to
+make, so a tab that was closed, hidden or on another page comes back without a
+gap. A source that keeps no history can leave it out: the strips stay empty.
+
+```json
+{
+  "minutes": 5, "step_s": 2, "supplies": ["AX1600i", "HX850i"],
+  "rows": [ { "t": 1793327364000, "wall": 1650, "metered": 1531.0 } ],
+  "volts": [ { "t": 1793327360000, "v": 234.7 } ]
+}
+```
+
+`rows` sit on one grid, oldest first, `t` in epoch milliseconds: `wall` is the
+figure `/now` gives as `total_watts`, `metered` the named `supplies`' own
+readings summed (null unless each had one). `volts` is the UPS's mains input at
+its own reporting interval.
+
 ## `GET /history?hours=N`
 
 The wall figure over the last N hours, polled every minute.
@@ -189,7 +211,7 @@ a day at 0 has no bar.
 Anything that serves these three documents works. A source reading apcupsd's
 network information server, NUT's `upsd`, a supply's hwmon files or an InfluxDB
 or Prometheus history is a few hundred lines. Keep the expensive parts cached:
-`/now` is polled every 2 s by every open dashboard.
+`/now` and `/recent` are polled every 2 s by every open dashboard.
 
 ## GPU documents
 

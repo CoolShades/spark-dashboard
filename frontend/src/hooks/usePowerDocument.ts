@@ -21,15 +21,7 @@ export interface PowerDocumentState<T> {
   data: T | null
   /** When `data` was fetched (epoch ms), or null before the first success. */
   fetchedAt: number | null
-  /**
-   * The good documents of the last few minutes, oldest first (RECENT_MS), for a panel that draws its own live
-   * strip: the slow-moving history document is minute means, this is every poll.
-   */
-  recent: ReadonlyArray<{ at: number; data: T }>
 }
-
-/** How much of the poll history a document keeps for live strips. */
-export const RECENT_MS = 5 * 60_000
 
 interface Poller {
   state: PowerDocumentState<unknown>
@@ -52,14 +44,12 @@ async function poll(path: string, poller: Poller): Promise<void> {
   try {
     const resp = await fetch(`/api/power/${path}`, { headers: { Accept: 'application/json' } })
     if (resp.status === 404) {
-      next = { status: 'not-configured', data: null, fetchedAt: null, recent: [] }
+      next = { status: 'not-configured', data: null, fetchedAt: null }
     } else if (!resp.ok) {
       next = { ...poller.state, status: 'unavailable' }
     } else {
       const data: unknown = await resp.json()
-      const at = Date.now()
-      const recent = [...poller.state.recent.filter((r) => at - r.at <= RECENT_MS), { at, data }]
-      next = { status: 'ready', data, fetchedAt: at, recent }
+      next = { status: 'ready', data, fetchedAt: Date.now() }
     }
   } catch {
     next = { ...poller.state, status: 'unavailable' }
@@ -74,7 +64,7 @@ function subscribe(path: string, intervalMs: number, listener: () => void): () =
   let poller = pollers.get(path)
   if (!poller) {
     poller = {
-      state: remembered.get(path) ?? { status: 'loading', data: null, fetchedAt: null, recent: [] },
+      state: remembered.get(path) ?? { status: 'loading', data: null, fetchedAt: null },
       listeners: new Set(),
       timer: null,
       intervalMs,
@@ -98,7 +88,7 @@ function subscribe(path: string, intervalMs: number, listener: () => void): () =
   }
 }
 
-const INITIAL: PowerDocumentState<never> = { status: 'loading', data: null, fetchedAt: null, recent: [] }
+const INITIAL: PowerDocumentState<never> = { status: 'loading', data: null, fetchedAt: null }
 
 /**
  * One power document, re-rendering when a poll lands. `path` includes any
@@ -115,12 +105,16 @@ export function usePowerDocument<T>(path: string, intervalMs: number): PowerDocu
   return useSyncExternalStore(sub, get)
 }
 
-/** Polling intervals: live readings every 2 s; history and daily totals move slowly; the GPUs' extras every 5 s. */
-export const POWER_POLL_MS = { now: 2_000, history: 60_000, daily: 300_000, gpus: 5_000, gpuHistory: 60_000, tokens: 15_000, tokenHistory: 60_000, tokenDaily: 300_000, host: 10_000, hostHistory: 60_000 } as const
+/**
+ * Polling intervals: live readings every 2 s, and the live strips' last few minutes with them (the source keeps
+ * those, so a strip has no gap for the time a tab was closed, hidden or on another page); history and daily totals
+ * move slowly; the GPUs' extras every 5 s.
+ */
+export const POWER_POLL_MS = { now: 2_000, recent: 2_000, history: 60_000, daily: 300_000, gpus: 5_000, gpuHistory: 60_000, tokens: 15_000, tokenHistory: 60_000, tokenDaily: 300_000, host: 10_000, hostHistory: 60_000 } as const
 
 /** Every page's documents, for `prefetchPowerDocuments`: the paths the panels ask for. */
 export const POWER_DOCUMENTS = [
-  'now', 'history?hours=24', 'daily?days=7', 'gpus', 'gpu-history?hours=24',
+  'now', 'recent?minutes=5', 'history?hours=24', 'daily?days=7', 'gpus', 'gpu-history?hours=24',
   'tokens', 'token-history?hours=24', 'token-daily?days=7', 'host', 'host-history?hours=24',
 ] as const
 
@@ -137,7 +131,7 @@ export async function prefetchPowerDocuments(paths: readonly string[] = POWER_DO
       if (resp.status === 404) return
       if (!resp.ok) continue
       const data: unknown = await resp.json()
-      if (!pollers.has(path)) remember(path, { status: 'ready', data, fetchedAt: Date.now(), recent: [{ at: Date.now(), data }] })
+      if (!pollers.has(path)) remember(path, { status: 'ready', data, fetchedAt: Date.now() })
     } catch {
       // the panel's own poll will say so when it mounts
     }

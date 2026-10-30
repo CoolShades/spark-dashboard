@@ -49,6 +49,7 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let app = crate::server::create_router(crate::server::AppState {
             metrics_tx: tx,
+            history: std::sync::Arc::new(crate::history::SnapshotHistory::new(1000)),
             config: std::sync::Arc::new(crate::config_store::ConfigStore::new(dir.path()).await),
             power: None,
         });

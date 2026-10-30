@@ -19,7 +19,7 @@ import {
   voltsColor,
 } from '@/lib/power'
 import { NVIDIA_THEME, thresholdColor } from '@/lib/theme'
-import type { MainsLimits, PowerNow, PowerUps } from '@/types/power'
+import type { MainsLimits, PowerNow, PowerRecent, PowerUps } from '@/types/power'
 import { usePanelDevice } from '../../panelDevice'
 import { PanelNotice } from '../PanelNotice'
 import { FactLine, Headline, PowerNotice, PowerStat, Sparkline, StaleBadge, StripFooter } from './PowerParts'
@@ -126,6 +126,8 @@ function MoreRows({ ups, limits, dim, at }: { ups: PowerUps; limits: MainsLimits
  */
 export function PowerUpsPanel() {
   const now = usePowerDocument<PowerNow>('now', POWER_POLL_MS.now)
+  // The strip's minutes come from the source, which recorded them whether or not a tab was open to poll.
+  const recent = usePowerDocument<PowerRecent>('recent?minutes=5', POWER_POLL_MS.recent)
   usePanelDevice(now.data?.ups?.name ?? null)
   if (!now.data) return <PowerNotice state={now} />
   const ups = now.data.ups
@@ -141,9 +143,7 @@ export function PowerUpsPanel() {
   const runtime = ups.runtime_seconds
   const battery = !stale && onBattery(ups.status)
   const load = ups.load_percent
-  const volts = (now.recent as ReadonlyArray<{ at: number; data: PowerNow }>)
-    .map((r) => ({ at: r.at, v: r.data.ups?.input_volts ?? null }))
-    .filter((p): p is { at: number; v: number } => p.v !== null)
+  const volts = (recent.data?.volts ?? []).map((p) => ({ at: p.t, v: p.v }))
   const pct = ups.shutdown_battery_percent ?? null
   const left = ups.shutdown_runtime_seconds ?? null
   const shutdown = pct !== null && left !== null ? `shuts down at ${Math.round(pct)} % or ${formatRuntime(left)} left`

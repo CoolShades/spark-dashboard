@@ -5,6 +5,7 @@ use axum::{routing::get, Router};
 use rust_embed::Embed;
 use std::sync::Arc;
 use tokio::sync::broadcast;
+use tower_http::compression::CompressionLayer;
 use tower_http::cors::CorsLayer;
 
 use crate::config_store::{ConfigStore, MAX_DOCUMENT_BYTES};
@@ -25,6 +26,8 @@ const READ_ONLY_HEADER: &str = "x-spark-dashboard-read-only";
 #[derive(Clone)]
 pub struct AppState {
     pub metrics_tx: broadcast::Sender<String>,
+    /// The last few minutes of snapshots (`/api/metrics/history`).
+    pub history: Arc<crate::history::SnapshotHistory>,
     pub config: Arc<ConfigStore>,
     /// The Power panels' source (`--power-url`); `None` when not configured.
     pub power: Option<Arc<crate::power::PowerSource>>,
@@ -49,7 +52,14 @@ pub fn create_router(state: AppState) -> Router {
         // is exactly one byte over so the limit is ours rather than a tower
         // default that could drift.
         .layer(DefaultBodyLimit::max(MAX_DOCUMENT_BYTES + 1))
+        // Fifteen minutes of snapshots is ~4 MB of JSON that compresses ~10x; it is
+        // the one response worth compressing.
+        .route(
+            "/metrics/history",
+            get(crate::history::history).layer(CompressionLayer::new()),
+        )
         .route("/power/now", get(crate::power::now))
+        .route("/power/recent", get(crate::power::recent))
         .route("/power/history", get(crate::power::history))
         .route("/power/daily", get(crate::power::daily))
         .route("/power/gpus", get(crate::power::gpus))
@@ -256,9 +266,21 @@ mod tests {
     /// Spawns the server over a fresh state directory and returns its address
     /// alongside the directory guard, which must stay alive for the test.
     async fn spawn(state_dir: &std::path::Path) -> String {
+        spawn_with_history(
+            state_dir,
+            Arc::new(crate::history::SnapshotHistory::new(1000)),
+        )
+        .await
+    }
+
+    async fn spawn_with_history(
+        state_dir: &std::path::Path,
+        history: Arc<crate::history::SnapshotHistory>,
+    ) -> String {
         let (tx, _rx) = broadcast::channel::<String>(16);
         let state = AppState {
             metrics_tx: tx,
+            history,
             config: Arc::new(ConfigStore::new(state_dir).await),
             power: None,
         };
@@ -271,6 +293,38 @@ mod tests {
         });
 
         format!("http://{addr}")
+    }
+
+    #[tokio::test]
+    async fn metrics_history_answers_only_what_the_client_missed_compressed() {
+        let dir = tempfile::tempdir().unwrap();
+        let history = Arc::new(crate::history::SnapshotHistory::new(1000));
+        for at in [1000u64, 2000, 3000] {
+            history.push(at, format!(r#"{{"timestamp_ms":{at}}}"#));
+        }
+        let base = spawn_with_history(dir.path(), history).await;
+
+        let resp = reqwest::get(format!("{base}/api/metrics/history?since=1000"))
+            .await
+            .unwrap();
+        assert_eq!(resp.status(), reqwest::StatusCode::OK);
+        assert_eq!(
+            resp.headers()[axum::http::header::CONTENT_TYPE],
+            "application/json"
+        );
+        assert_eq!(
+            resp.text().await.unwrap(),
+            r#"[{"timestamp_ms":2000},{"timestamp_ms":3000}]"#
+        );
+
+        // A browser says it takes gzip, and gets it.
+        let resp = reqwest::Client::new()
+            .get(format!("{base}/api/metrics/history"))
+            .header(axum::http::header::ACCEPT_ENCODING, "gzip")
+            .send()
+            .await
+            .unwrap();
+        assert_eq!(resp.headers()[axum::http::header::CONTENT_ENCODING], "gzip");
     }
 
     #[tokio::test]

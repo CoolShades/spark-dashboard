@@ -24,8 +24,8 @@ import type { DashboardDocument, DashboardPage, DashboardPanel } from './lib/das
  * however many panels the page holds.
  */
 function DashboardPageView({ pageId }: { pageId: string | null }) {
-  const { metrics, connectionStatus, isStale } = useMetrics()
-  useMetricsIngest(metrics)
+  const { batch, connectionStatus, isStale } = useMetrics()
+  useMetricsIngest(batch)
   const { document, notices: configurationNotices, readOnly, save, reset } =
     useDashboardConfiguration()
   // The edit session lives in the editor below, but the header has to know about

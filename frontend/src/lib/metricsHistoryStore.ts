@@ -10,7 +10,8 @@ export interface DataPoint {
   value: number
 }
 
-const BUFFER_CAPACITY = 900 // 15 minutes at 1 sample/sec
+/** Samples kept per series: 15 minutes at 1 sample/sec, the longest chart window. */
+export const BUFFER_CAPACITY = 900
 const EVENT_BUFFER_CAPACITY = 100
 const REQUEST_BUFFER_CAPACITY = 50
 
@@ -260,16 +261,52 @@ export class MetricsHistoryStore {
 
   /**
    * Append one snapshot to every series it carries a value for, then notify
-   * the changed series' subscribers. A snapshot with an already-seen timestamp
-   * is a re-render artifact, not new data, and is ignored.
+   * the changed series' subscribers. A snapshot no newer than the last one is
+   * a re-render artifact or a repeat (a backfill overlapping the live stream),
+   * not new data, and is ignored.
    */
   ingest(metrics: MetricsSnapshot): void {
-    if (metrics.timestamp_ms === this.lastTimestamp) return
-    this.lastTimestamp = metrics.timestamp_ms
-    this.lastSnapshot = metrics
+    this.ingestAll([metrics])
+  }
 
-    const ts = metrics.timestamp_ms
+  /**
+   * Append several snapshots, oldest first, and notify once for all of them:
+   * the frames a hidden tab queued, or the minutes the server kept for a client
+   * that was away. `history` snapshots fill the series only — the server slims
+   * them (no per-core CPU, no histograms), so they never become `latest()`.
+   */
+  ingestAll(snapshots: readonly MetricsSnapshot[], { history = false }: { history?: boolean } = {}): void {
     const changed = new Set<string>()
+    let appended = 0
+    for (const metrics of snapshots) {
+      if (metrics.timestamp_ms <= this.lastTimestamp) continue
+      this.lastTimestamp = metrics.timestamp_ms
+      if (!history) this.lastSnapshot = metrics
+      this.append(metrics, changed)
+      appended++
+    }
+    if (appended === 0) return
+
+    this.ingested += appended
+    for (const series of changed) {
+      this.versions.set(series, (this.versions.get(series) ?? 0) + 1)
+    }
+    // Notify after all versions are bumped, so a listener that reads several
+    // series during its re-render sees one consistent snapshot.
+    for (const series of changed) {
+      const listeners = this.seriesListeners.get(series)
+      if (listeners) for (const listener of listeners) listener()
+    }
+    for (const listener of this.allListeners) listener()
+  }
+
+  /** The newest timestamp held (ms), 0 before any: what a backfill asks the server for everything after. */
+  newestTimestamp(): number {
+    return this.lastTimestamp
+  }
+
+  private append(metrics: MetricsSnapshot, changed: Set<string>): void {
+    const ts = metrics.timestamp_ms
 
     for (const key of SYSTEM_METRIC_KEYS) {
       const val = extractValue(metrics, key)
@@ -329,18 +366,6 @@ export class MetricsHistoryStore {
       }
       changed.add(EVENTS_SERIES)
     }
-
-    this.ingested++
-    for (const series of changed) {
-      this.versions.set(series, (this.versions.get(series) ?? 0) + 1)
-    }
-    // Notify after all versions are bumped, so a listener that reads several
-    // series during its re-render sees one consistent snapshot.
-    for (const series of changed) {
-      const listeners = this.seriesListeners.get(series)
-      if (listeners) for (const listener of listeners) listener()
-    }
-    for (const listener of this.allListeners) listener()
   }
 
   /** Append one tick of engine-shaped metrics to the buffer set under `key` —

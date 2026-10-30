@@ -17,7 +17,7 @@ import { PowerDailyPanel } from '../components/grid/panels/power/PowerDailyPanel
 import { PowerUpsPanel } from '../components/grid/panels/power/PowerUpsPanel'
 import { PowerWallPanel } from '../components/grid/panels/power/PowerWallPanel'
 import type { GpuMetrics, MetricsSnapshot } from '../types/metrics'
-import type { PowerHistory, PowerNow } from '../types/power'
+import type { PowerHistory, PowerNow, PowerRecent } from '../types/power'
 
 function gpu(index: number, watts: number): GpuMetrics {
   return {
@@ -168,20 +168,22 @@ describe('Power panels', () => {
     expect(screen.getByText('AX1600i in 646 W · HX850i out 460 W')).toBeInTheDocument()
   })
 
-  it('draw a live strip once a few polls have landed', async () => {
-    vi.useFakeTimers({ shouldAdvanceTime: true })
-    try {
-      respond(200, NOW)
-      withStore(<PowerWallPanel />)
-      await screen.findByText('1,404')
-      expect(screen.queryByLabelText('Last few minutes')).toBeNull()
-      await vi.advanceTimersByTimeAsync(4_500)
-      expect(await screen.findByLabelText('Last few minutes')).toBeInTheDocument()
-      expect(screen.getByText(/AX1600i \+ HX850i \(metered\)/)).toBeInTheDocument()
-      expect(screen.getByText(/^last \d+ min/)).toBeInTheDocument() // the live chart's caption, its window
-    } finally {
-      vi.useRealTimers()
-    }
+  it('draw the live strips from the minutes the source kept, without waiting for polls to pile up', async () => {
+    const t0 = Date.UTC(2026, 9, 30, 2, 0)
+    respondBy({
+      now: NOW,
+      recent: {
+        minutes: 5, step_s: 2, supplies: ['AX1600i', 'HX850i'],
+        rows: Array.from({ length: 150 }, (_, i) => ({ t: t0 + i * 2000, wall: 1400 + i, metered: 1300 + i })),
+        volts: Array.from({ length: 60 }, (_, i) => ({ t: t0 + i * 5000, v: 236 + (i % 3) / 10 })),
+      } satisfies PowerRecent,
+    })
+    withStore(<><PowerWallPanel /><PowerUpsPanel /></>)
+    expect(await screen.findByLabelText('Last few minutes')).toBeInTheDocument()
+    expect(screen.getByText(/AX1600i \+ HX850i \(metered\)/)).toBeInTheDocument()
+    expect(screen.getByText(/^last 5 min/)).toBeInTheDocument() // the wall chart's caption: the kept window
+    expect(screen.getByLabelText('Mains voltage, last few minutes')).toBeInTheDocument()
+    expect(screen.getByText('mains in, last 5 min')).toBeInTheDocument()
   })
 
   it('headline the UPS state on mains, and the runtime left on battery', async () => {

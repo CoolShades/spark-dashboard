@@ -35,6 +35,7 @@ pub struct MetricsSnapshot {
 #[cfg(target_os = "linux")]
 pub async fn metrics_collector(
     tx: broadcast::Sender<String>,
+    history: std::sync::Arc<crate::history::SnapshotHistory>,
     poll_interval_ms: u64,
     gpu_index: Option<u32>,
     simulate_gpus: u32,
@@ -180,6 +181,7 @@ pub async fn metrics_collector(
                 tracing::error!("Failed to serialize metrics: {}", e);
             }
         }
+        history.record(&snapshot);
     }
 }
 
@@ -187,6 +189,7 @@ pub async fn metrics_collector(
 #[cfg(not(target_os = "linux"))]
 pub async fn metrics_collector(
     tx: broadcast::Sender<String>,
+    history: std::sync::Arc<crate::history::SnapshotHistory>,
     poll_interval_ms: u64,
     _gpu_index: Option<u32>,
     simulate_gpus: u32,
@@ -253,6 +256,7 @@ pub async fn metrics_collector(
                 tracing::error!("Failed to serialize metrics: {}", e);
             }
         }
+        history.record(&snapshot);
     }
 }
 

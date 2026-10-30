@@ -393,3 +393,36 @@ describe('gpuMemoryPercent', () => {
     expect(gpuMemoryPercent({ ...GPU, memory_total_bytes: 0 })).toBeNull()
   })
 })
+
+describe('MetricsHistoryStore batches and backfill', () => {
+  it('appends a batch in order and notifies a subscriber once for all of it', () => {
+    const store = new MetricsHistoryStore()
+    const listener = vi.fn()
+    store.subscribe('gpuUtil', listener)
+    store.ingestAll([makeSnapshot(1000, { util: 1 }), makeSnapshot(2000, { util: 2 }), makeSnapshot(3000, { util: 3 })])
+    expect(store.getChartData('gpuUtil').map((p) => p.value)).toEqual([1, 2, 3])
+    expect(listener).toHaveBeenCalledTimes(1)
+    expect(store.newestTimestamp()).toBe(3000)
+  })
+
+  it('ignores snapshots no newer than the newest it holds: a backfill overlapping the live stream adds nothing twice', () => {
+    const store = new MetricsHistoryStore()
+    store.ingestAll([makeSnapshot(1000, { util: 1 }), makeSnapshot(2000, { util: 2 })])
+    store.ingestAll([makeSnapshot(1000, { util: 9 }), makeSnapshot(2000, { util: 9 }), makeSnapshot(3000, { util: 3 })])
+    expect(store.getChartData('gpuUtil').map((p) => p.value)).toEqual([1, 2, 3])
+    const listener = vi.fn()
+    store.subscribeAll(listener)
+    store.ingestAll([makeSnapshot(3000)])
+    expect(listener).not.toHaveBeenCalled()
+  })
+
+  it('fills the series from kept history without making a slimmed snapshot the latest reading', () => {
+    const store = new MetricsHistoryStore()
+    store.ingestAll([makeSnapshot(1000, { util: 1 }), makeSnapshot(2000, { util: 2 })], { history: true })
+    expect(store.getChartData('gpuUtil').map((p) => p.value)).toEqual([1, 2])
+    expect(store.latest()).toBeNull()
+    const live = makeSnapshot(3000, { util: 3 })
+    store.ingestAll([live])
+    expect(store.latest()).toBe(live)
+  })
+})
