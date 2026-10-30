@@ -25,7 +25,8 @@ pub struct VllmAdapter {
     /// Generation tokens/s and its running average, from the
     /// generation_tokens_total counter.
     gen_rate: Mutex<CounterRate>,
-    /// Prompt tokens/s and its running average, from prompt_tokens_total.
+    /// Prefill tokens/s and its running average: prompt_tokens_total less the
+    /// prompt tokens served from the prefix cache (see `computed_prompt_tokens`).
     prompt_rate: Mutex<CounterRate>,
     /// Previous (accepted, draft) spec-decode counter readings, used to compute
     /// the live (windowed) token acceptance rate from per-poll deltas. No
@@ -188,23 +189,23 @@ impl EngineAdapter for VllmAdapter {
         // Token rates from the generation and prompt counters (delta /
         // elapsed), each with the running mean of its nonzero readings.
         let current_gen = counter("vllm_generation_tokens_total");
-        let current_prompt = counter("vllm_prompt_tokens_total");
+        let current_prompt = computed_prompt_tokens(
+            counter("vllm_prompt_tokens_total"),
+            counter("vllm_prompt_tokens_cached_total"),
+        );
         let now = Instant::now();
         let (tokens_per_sec, avg_tokens_per_sec) =
             self.gen_rate.lock().await.observe(current_gen, now);
         let (prompt_tokens_per_sec, avg_prompt_tokens_per_sec) =
             self.prompt_rate.lock().await.observe(current_prompt, now);
 
-        // Per-request prompt TPS: prompt_tokens_total / ttft_total_seconds
-        // Approximates average prefill throughput per request
-        let per_request_prompt_tps = {
-            let prompt_total = parsed.counters.get("vllm_prompt_tokens_total");
-            let ttft_sum = parsed.counters.get("vllm_time_to_first_token_seconds_sum");
-            match (prompt_total, ttft_sum) {
-                (Some(&p), Some(&t)) if t > 0.0 => Some(p / t),
-                _ => None,
-            }
-        };
+        // Per-request prefill speed (see `prefill_tokens_per_sec`).
+        let per_request_prompt_tps = prefill_tokens_per_sec(
+            counter("vllm_request_prefill_kv_computed_tokens_sum"),
+            counter("vllm_request_prefill_time_seconds_sum"),
+            counter("vllm_prompt_tokens_total"),
+            counter("vllm_time_to_first_token_seconds_sum"),
+        );
 
         // --- New metrics ---
 
@@ -454,6 +455,39 @@ fn spec_mean_acceptance_length(accepted: Option<f64>, drafts: Option<f64>) -> Op
     match (accepted, drafts) {
         (Some(a), Some(n)) if n > 0.0 => Some(a / n),
         _ => None,
+    }
+}
+
+/// Prompt tokens the engine computed: the prompt counter less the tokens it
+/// served from the prefix cache (`prompt_tokens_cached_total`, which vLLM
+/// exposes from 0.11). A cached token costs no prefill, so with long, mostly
+/// cached agent contexts the raw counter overstates prefill many times over
+/// (91 % of one deployment's prompt tokens were cache hits). Without the cached
+/// counter (older vLLM), the raw counter, as before.
+fn computed_prompt_tokens(total: Option<f64>, cached: Option<f64>) -> Option<f64> {
+    match (total, cached) {
+        (Some(t), Some(c)) => Some((t - c).max(0.0)),
+        (t, _) => t,
+    }
+}
+
+/// Per-request prefill speed. vLLM's own prefill accounting when it has it:
+/// the tokens requests' prefills computed over their prefill time
+/// (`request_prefill_kv_computed_tokens` over `request_prefill_time_seconds`).
+/// Otherwise the older approximation, prompt tokens over time to first token,
+/// which counts cache hits as prefill.
+fn prefill_tokens_per_sec(
+    kv_computed_sum: Option<f64>,
+    prefill_time_sum: Option<f64>,
+    prompt_total: Option<f64>,
+    ttft_sum: Option<f64>,
+) -> Option<f64> {
+    match (kv_computed_sum, prefill_time_sum) {
+        (Some(k), Some(t)) if t > 0.0 && k > 0.0 => Some(k / t),
+        _ => match (prompt_total, ttft_sum) {
+            (Some(p), Some(t)) if t > 0.0 => Some(p / t),
+            _ => None,
+        },
     }
 }
 
@@ -781,6 +815,47 @@ vllm:prefix_cache_hits_total 123456.0
             .copied()
             .map(|v| v as u64);
         assert_eq!(queries, Some(654_321));
+    }
+
+    #[test]
+    fn computed_prompt_tokens_leave_out_prefix_cache_hits() {
+        // The counters of a deployment whose agents resend long cached contexts.
+        assert_eq!(
+            computed_prompt_tokens(Some(10_599_692.0), Some(9_638_208.0)),
+            Some(961_484.0)
+        );
+        // Older vLLM: no cached counter, so the raw counter as before.
+        assert_eq!(computed_prompt_tokens(Some(500.0), None), Some(500.0));
+        assert_eq!(computed_prompt_tokens(None, Some(5.0)), None);
+        // Never negative, whatever order the counters were read in.
+        assert_eq!(computed_prompt_tokens(Some(5.0), Some(7.0)), Some(0.0));
+    }
+
+    #[test]
+    fn prefill_speed_uses_vllms_prefill_accounting_when_present() {
+        // 957,305 computed tokens over 155.6 s of prefill: about 6,150 tok/s,
+        // not the 10.5M prompt tokens over 155 s of TTFT (68K tok/s).
+        let tps = prefill_tokens_per_sec(
+            Some(957_305.0),
+            Some(155.6),
+            Some(10_521_593.0),
+            Some(155.0),
+        )
+        .expect("rate");
+        assert!((tps - 6152.3).abs() < 1.0, "{tps}");
+        // Without it, prompt tokens over time to first token.
+        assert_eq!(
+            prefill_tokens_per_sec(None, None, Some(300.0), Some(2.0)),
+            Some(150.0)
+        );
+        assert_eq!(
+            prefill_tokens_per_sec(Some(0.0), Some(0.0), Some(300.0), Some(2.0)),
+            Some(150.0)
+        );
+        assert_eq!(
+            prefill_tokens_per_sec(None, None, Some(300.0), Some(0.0)),
+            None
+        );
     }
 
     #[test]
