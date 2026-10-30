@@ -149,6 +149,15 @@ describe('the GPU card', () => {
     expect(screen.getByRole('group', { name: 'Power' })).toHaveTextContent('246W')
     expect(screen.queryByText('P2')).toBeNull()
   })
+
+  it('draws the strip of load and power you can hover once it has a few readings', async () => {
+    respondBy({ gpus: doc() })
+    const store = new MetricsHistoryStore()
+    const t = Date.now()
+    for (let k = 0; k < 3; k++) store.ingest({ ...snapshot([gpu(0), busy]), timestamp_ms: t - (2 - k) * 1000 })
+    render(<MetricsStoreContext.Provider value={store}><GpuCardPanel panel={CARD} /></MetricsStoreContext.Provider>)
+    expect(await screen.findByLabelText('Load and power, last few minutes')).toBeInTheDocument()
+  })
 })
 
 describe('the GPUs’ 24 h heatmap', () => {

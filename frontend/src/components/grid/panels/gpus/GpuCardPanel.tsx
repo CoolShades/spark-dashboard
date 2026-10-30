@@ -10,30 +10,31 @@ import { usePanelDevice } from '../../panelDevice'
 import type { PanelContentProps } from '../../panelRegistry'
 import { GpuPanelNotice } from '../PanelNotice'
 import { useGpuPanel } from '../useGpuPanel'
-import { FactLine, Headline, PowerStat, StripFooter } from '../power/PowerParts'
+import { FactLine, Headline, HoverLines, PowerStat, StripFooter } from '../power/PowerParts'
 
 const GIB = 2 ** 30
 const POWER_LINE = '#a1a1aa'
 
-/** The card's strip: load (0-100 %) and power (0 to the limit) over the panel's window, each on its own scale. */
+/**
+ * The card's strip: load (0-100 %) and power (0 to the limit) over the panel's window, each on its own scale (power is
+ * drawn as its share of the limit). Hovering gives the moment's load and watts in the charts' small label.
+ */
 function Strip({ util, power, limit, window }: { util: DataPoint[]; power: DataPoint[]; limit: number | null; window: string }) {
-  const all = [...util, ...power]
   if (util.length < 3) return null
-  const t0 = Math.min(...all.map((p) => p.timestamp))
-  const t1 = Math.max(...all.map((p) => p.timestamp))
-  const W = 300
-  const H = 40
   const top = limit ?? Math.max(...power.map((p) => p.value), 1)
-  const path = (pts: DataPoint[], max: number) =>
-    pts
-      .map((p, i) => `${i ? 'L' : 'M'}${(((p.timestamp - t0) / Math.max(t1 - t0, 1)) * W).toFixed(1)},${(H - 1 - (Math.min(p.value, max) / max) * (H - 2)).toFixed(1)}`)
-      .join(' ')
+  const watts = new Map(power.map((p) => [p.timestamp, p.value]))
+  const rows = util.map((p) => {
+    const w = watts.get(p.timestamp) ?? null
+    return { t: p.timestamp, load: Math.min(p.value, 100), pw: w !== null ? Math.min(w / top, 1) * 100 : null, watts: w }
+  })
   return (
     <StripFooter caption={<><span style={{ color: NVIDIA_THEME.accent }}>load</span> · <span className="text-zinc-400">power</span>, last {window}</>}>
-      <svg viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none" className="w-full h-6" aria-label="Load and power, last few minutes">
-        {power.length > 1 && <path d={path(power, top)} fill="none" stroke={POWER_LINE} strokeOpacity={0.6} strokeWidth={1} vectorEffect="non-scaling-stroke" />}
-        <path d={path(util, 100)} fill="none" stroke={NVIDIA_THEME.accent} strokeWidth={1.5} vectorEffect="non-scaling-stroke" />
-      </svg>
+      <HoverLines rows={rows} x="t" domain={[0, 100]} label="Load and power, last few minutes"
+        lines={[{ key: 'load', color: NVIDIA_THEME.accent }, { key: 'pw', color: POWER_LINE, width: 1, opacity: 0.6 }]}
+        text={(r) => [
+          [`${r.load != null ? Math.round(r.load) : '—'} % load`, NVIDIA_THEME.accent],
+          ...(r.watts != null ? [[` · ${formatWattsValue(r.watts)} W`, POWER_LINE] as const] : []),
+        ]} />
     </StripFooter>
   )
 }
